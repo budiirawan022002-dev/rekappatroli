@@ -90,6 +90,13 @@ include_once('includes/header.php');
                         <span>Patroli Bencana</span>
                       </label>
                     </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="reportType[]" id="laporanEngagement" value="Laporan ENGAGEMENT">
+                      <label class="form-check-label" for="laporanEngagement">
+                        <i class="bi bi-chat-heart-fill text-info"></i> 
+                        <span>Laporan ENGAGEMENT</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
                 <div class="d-grid mt-3 mt-md-4">
@@ -1057,6 +1064,22 @@ window.addEventListener('load', function() {
         wizardForm.addEventListener('submit', function(e) {
             const selectedReports = Array.from(document.querySelectorAll('input[name="reportType[]"]:checked'))
                 .map(cb => cb.value);
+            
+            // Check if Laporan ENGAGEMENT is selected
+            if (selectedReports.includes('Laporan ENGAGEMENT')) {
+                // If only ENGAGEMENT is selected, redirect directly
+                if (selectedReports.length === 1) {
+                    e.preventDefault();
+                    window.location.href = 'laporan_engagement.php';
+                    return false;
+                } else {
+                    // If selected with other types, show alert and redirect
+                    e.preventDefault();
+                    alert('Laporan ENGAGEMENT harus diproses secara terpisah. Anda akan diarahkan ke halaman Laporan ENGAGEMENT.');
+                    window.location.href = 'laporan_engagement.php';
+                    return false;
+                }
+            }
             
             // Validate judul Landy jika Patroli Landy dipilih
             if (selectedReports.includes('Patroli Landy')) {

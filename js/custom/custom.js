@@ -31,6 +31,21 @@ function nextStep(step) {
             alert('Pilih setidaknya satu jenis laporan.');
             return;
         }
+        
+        // Check if Laporan ENGAGEMENT is selected - redirect immediately
+        if (selectedReports.includes('Laporan ENGAGEMENT')) {
+            // If only ENGAGEMENT is selected, redirect directly
+            if (selectedReports.length === 1) {
+                window.location.href = 'laporan_engagement.php';
+                return;
+            } else {
+                // If selected with other types, show alert and redirect
+                if (confirm('Laporan ENGAGEMENT harus diproses secara terpisah. Anda akan diarahkan ke halaman Laporan ENGAGEMENT. Lanjutkan?')) {
+                    window.location.href = 'laporan_engagement.php';
+                }
+                return;
+            }
+        }
     }
 
     // Step 2 validation: Date must be filled

@@ -414,7 +414,7 @@ try {
         $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText} yakni terkait Penanganan Bencana Alam di Medan, Sumatera Barat dan Aceh, Isu Deforestasi, serta Polemik penanganan bencana. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
 
         $narasiPatroliBencana = <<<EOD
-*Kepada Yth.: Kasuari-2*
+*Kepada Yth.: Kasuari-6*
 
 *Dari :Merpati-14*
 
@@ -425,7 +425,6 @@ try {
 *4. Kasuari-24*
 *5. Kasuari-25*
 *6. Kasuari-63*
-*7. Kasuari-75*
 
 *Perihal : {$judulBencana} di Wilayah Merpati-14 (Update {$tanggalFormattedFirst} Pukul {$waktuFormatted})*
 
