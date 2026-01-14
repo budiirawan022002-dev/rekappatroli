@@ -90,13 +90,6 @@ include_once('includes/header.php');
                         <span>Patroli Bencana</span>
                       </label>
                     </div>
-                    <div class="form-check">
-                      <input class="form-check-input" type="checkbox" name="reportType[]" id="laporanEngagement" value="Laporan ENGAGEMENT">
-                      <label class="form-check-label" for="laporanEngagement">
-                        <i class="bi bi-heart-fill text-danger"></i> 
-                        <span>Laporan ENGAGEMENT</span>
-                      </label>
-                    </div>
                   </div>
                 </div>
                 <div class="d-grid mt-3 mt-md-4">
@@ -1065,21 +1058,6 @@ window.addEventListener('load', function() {
             const selectedReports = Array.from(document.querySelectorAll('input[name="reportType[]"]:checked'))
                 .map(cb => cb.value);
             
-            // Jika hanya Laporan ENGAGEMENT yang dipilih, prevent submit dan redirect
-            if (selectedReports.length === 1 && selectedReports.includes('Laporan ENGAGEMENT')) {
-                e.preventDefault();
-                window.location.href = 'laporan_engagement.php';
-                return false;
-            }
-            
-            // Jika Laporan ENGAGEMENT dipilih bersama jenis lain, hapus dari selection dan redirect
-            if (selectedReports.includes('Laporan ENGAGEMENT')) {
-                e.preventDefault();
-                alert('Laporan ENGAGEMENT harus diproses di halaman khusus. Anda akan diarahkan ke halaman Laporan ENGAGEMENT.');
-                window.location.href = 'laporan_engagement.php';
-                return false;
-            }
-            
             // Validate judul Landy jika Patroli Landy dipilih
             if (selectedReports.includes('Patroli Landy')) {
                 const judulLandyValue = judulLandySelect ? judulLandySelect.value : '';
@@ -1126,26 +1104,6 @@ window.addEventListener('load', function() {
     
     console.log('✅ Judul Landy handler initialized');
     console.log('✅ Judul Bencana handler initialized');
-    
-    // Handle Laporan ENGAGEMENT checkbox - langsung redirect ke halaman khusus
-    const laporanEngagementCheckbox = document.getElementById('laporanEngagement');
-    if (laporanEngagementCheckbox) {
-        laporanEngagementCheckbox.addEventListener('change', function(e) {
-            if (this.checked) {
-                // Uncheck semua checkbox lainnya untuk mencegah konflik
-                document.querySelectorAll('input[name="reportType[]"]').forEach(cb => {
-                    if (cb.id !== 'laporanEngagement') {
-                        cb.checked = false;
-                    }
-                });
-                
-                // Langsung redirect ke halaman Laporan ENGAGEMENT
-                setTimeout(() => {
-                    window.location.href = 'laporan_engagement.php';
-                }, 100);
-            }
-        });
-    }
 });
 </script>
 <style>

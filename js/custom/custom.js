@@ -31,19 +31,6 @@ function nextStep(step) {
             alert('Pilih setidaknya satu jenis laporan.');
             return;
         }
-        
-        // Jika hanya Laporan ENGAGEMENT yang dipilih, langsung redirect
-        if (selectedReports.length === 1 && selectedReports.includes('Laporan ENGAGEMENT')) {
-            window.location.href = 'laporan_engagement.php';
-            return;
-        }
-        
-        // Jika Laporan ENGAGEMENT dipilih bersama jenis lain, hapus dari selection dan redirect
-        if (selectedReports.includes('Laporan ENGAGEMENT')) {
-            alert('Laporan ENGAGEMENT harus diproses di halaman khusus. Anda akan diarahkan ke halaman Laporan ENGAGEMENT.');
-            window.location.href = 'laporan_engagement.php';
-            return;
-        }
     }
 
     // Step 2 validation: Date must be filled

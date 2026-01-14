@@ -1250,7 +1250,6 @@
           $isDashboard = ($currentPage === 'index.php' && !isset($_GET['page']));
           $isLaporan = in_array($currentPage, ['index.php', 'rekap_surya.php', 'rekap_danantara.php']);
           $isScreenshot = ($currentPage === 'screenshot_link.php');
-          $isEngagement = ($currentPage === 'laporan_engagement.php');
           $isUserManagement = (strpos($currentPage, 'users.php') !== false);
           ?>
           <li class="nav-item">
@@ -1260,7 +1259,7 @@
             </a>
           </li>
           <li class="nav-item dropdown">
-            <a class="nav-link header-nav-link dropdown-toggle dropdown-toggle-nocaret <?php echo ($isLaporan && !$isDashboard) || $isScreenshot || $isEngagement || $isUserManagement ? 'active' : ''; ?>" href="javascript:;" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link header-nav-link dropdown-toggle dropdown-toggle-nocaret <?php echo ($isLaporan && !$isDashboard) || $isScreenshot || $isUserManagement ? 'active' : ''; ?>" href="javascript:;" data-bs-toggle="dropdown" aria-expanded="false">
               <div class="parent-icon"><i class="bi bi-file-earmark-text"></i></div>
               <div class="menu-title d-flex align-items-center">Laporan</div>
               <div class="ms-auto dropy-icon"><i class='material-icons-outlined'>expand_more</i></div>
@@ -1282,10 +1281,6 @@
               <li><a class="dropdown-item <?php echo $isScreenshot ? 'active' : ''; ?>" href="screenshot_link.php">
                   <div class="parent-icon"><i class="bi bi-camera-fill"></i></div>
                   <div class="menu-title d-flex align-items-center">Screenshot Link</div>
-                </a></li>
-              <li><a class="dropdown-item <?php echo $isEngagement ? 'active' : ''; ?>" href="laporan_engagement.php">
-                  <div class="parent-icon"><i class="bi bi-heart-fill"></i></div>
-                  <div class="menu-title d-flex align-items-center">Laporan ENGAGEMENT</div>
                 </a></li>
               <?php if (false && isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
               <li><a class="dropdown-item <?php echo $isUserManagement ? 'active' : ''; ?>" href="admin/users.php">
@@ -1449,10 +1444,6 @@
             <li><a class="dropdown-item" href="screenshot_link.php">
                 <div class="parent-icon"><i class="bi bi-camera-fill"></i></div>
                 <div class="menu-title d-flex align-items-center">Screenshot Link</div>
-              </a></li>
-            <li><a class="dropdown-item" href="laporan_engagement.php">
-                <div class="parent-icon"><i class="bi bi-heart-fill"></i></div>
-                <div class="menu-title d-flex align-items-center">Laporan ENGAGEMENT</div>
               </a></li>
             <?php if (false && isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
             <li><a class="dropdown-item" href="admin/users.php">
