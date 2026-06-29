@@ -6,6 +6,7 @@ hasil/
 foto/
 ss/
 error.log
+template_web/
 
 # Large PDF output samples (not templates)
 template_pdf/08052025*
