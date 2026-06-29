@@ -1,0 +1,30 @@
+# Duplicate subfolder (all code is in root)
+laporan_v1/
+
+# Output & runtime files (not needed for serverless function)
+hasil/
+foto/
+ss/
+error.log
+
+# Large PDF output samples (not templates)
+template_pdf/08052025*
+template_pdf/09052025*
+template_pdf/output_kbd.pdf
+
+# Backup & test files
+index copy.php
+api_rekap - Copy.php
+test-upaya-validation.html
+test_excel_extraction.php
+test_new_ui.php
+upload_debug.php
+
+# Documentation
+*.md
+!README.md
+
+# Misc
+.git
+node_modules/
+vendor/

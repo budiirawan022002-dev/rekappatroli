@@ -1,9 +1,18 @@
+# Dependencies
 /node_modules/
 /vendor/
-/laporan_v1/node_modules/
-/laporan_v1/vendor/
-.vercel/
+
+# Duplicate subfolder (not needed - all files already in root)
+/laporan_v1/
+
+# Output & temporary files
+/hasil/
+/foto/
+/ss/
 error.log
-/hasil/*.docx
-/hasil/*.pdf
-/hasil/*.xlsx
+.vercel/
+
+# Backup & test files
+*.log
+"index copy.php"
+"api_rekap - Copy.php"
