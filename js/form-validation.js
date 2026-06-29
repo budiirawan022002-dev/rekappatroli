@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Check if Patroli Landy or Patroli Bencana is selected to determine expected field count
             const isPatroliLandy = document.querySelector('input[name="reportType[]"][value="Patroli Landy"]')?.checked;
             const isPatroliBencana = document.querySelector('input[name="reportType[]"][value="Patroli Bencana"]')?.checked;
-            const isLandyOrBencana = isPatroliLandy || isPatroliBencana;
+            const isMbgLengkap = document.querySelector('input[name="reportType[]"][value="Laporan MBG Lengkap"]')?.checked;
+            const isLandyOrBencana = isPatroliLandy || isPatroliBencana || isMbgLengkap;
             const linesPerBlock = isLandyOrBencana ? 9 : 4;
             
             console.log('PatrolReport blur validation - isPatroliLandy:', isPatroliLandy, 'isPatroliBencana:', isPatroliBencana, 'linesPerBlock:', linesPerBlock);
@@ -206,13 +207,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Show/hide KBD section
                 const kbdSection = document.getElementById('step4-laporanKbd');
                 if (kbdSection) {
-                    kbdSection.classList.toggle('d-none', !selected.includes('Laporan KBD'));
+                    kbdSection.classList.toggle('d-none', !(selected.includes('Laporan KBD') || selected.includes('Laporan MBG Lengkap')));
                 }
                 
                 // Show/hide Landy/Pagi/Bencana section
                 const landyPagiSection = document.getElementById('step4-patroliLandyPagi');
                 if (landyPagiSection) {
-                    const showSection = selected.includes('Patroli Landy') || selected.includes('Patroli Pagi') || selected.includes('Patroli Bencana');
+                    const showSection = selected.includes('Patroli Landy') || selected.includes('Patroli Pagi') || selected.includes('Patroli Bencana') || selected.includes('Laporan MBG Lengkap');
                     landyPagiSection.classList.toggle('d-none', !showSection);
                     console.log('step4-patroliLandyPagi visibility - Landy:', selected.includes('Patroli Landy'), 'Pagi:', selected.includes('Patroli Pagi'), 'Bencana:', selected.includes('Patroli Bencana'), 'Show:', showSection);
                 }
@@ -237,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // RAS section for Landy and Bencana
                 const rasSection = document.getElementById('landyRasScreenshotSection');
                 if (rasSection) {
-                    const showRas = selected.includes('Patroli Landy') || selected.includes('Patroli Bencana');
+                    const showRas = selected.includes('Patroli Landy') || selected.includes('Patroli Bencana') || selected.includes('Laporan MBG Lengkap');
                     rasSection.classList.toggle('d-none', !showRas);
                     if (typeof debugLog !== 'undefined') {
                         debugLog('RAS section visibility - Landy:', selected.includes('Patroli Landy'), 'Bencana:', selected.includes('Patroli Bencana'), 'Show:', showRas);
@@ -247,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Profiling Screenshot section for Landy and Bencana
                 const profilingSection = document.getElementById('landyProfilingScreenshotSection');
                 if (profilingSection) {
-                    const showProfiling = selected.includes('Patroli Landy') || selected.includes('Patroli Bencana');
+                    const showProfiling = selected.includes('Patroli Landy') || selected.includes('Patroli Bencana') || selected.includes('Laporan MBG Lengkap');
                     profilingSection.classList.toggle('d-none', !showProfiling);
                     if (typeof debugLog !== 'undefined') {
                         debugLog('Profiling section visibility - Landy:', selected.includes('Patroli Landy'), 'Bencana:', selected.includes('Patroli Bencana'), 'Show:', showProfiling);

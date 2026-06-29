@@ -262,6 +262,7 @@ try {
         }
     }
     } // End of standard parsing block
+    } // End else: not multi-line profiling (pair with if/else starting ~line 49)
 
     // Generate narrative for each platform
     $narasiPatroli = "";
@@ -511,21 +512,15 @@ EOD;
         
         $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText}. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
 
-        // Check if this is "Sore" based on jumlah laporan
-        // Jika 1 laporan = MBG, jika 2 atau lebih = Sore
-        $isSore = $totalPatroliCount >= 2;
-        
-        if ($isSore) {
-            // Format untuk Patroli Sore
-            $narasiPatroliLandy = <<<EOD
-*Kepada Yth.: Kasuari-6*
+        $narasiPatroliLandy = <<<EOD
+*Kepada Yth: Rajawali*
 
 *Dari: Merpati-14*
 
 *Tembusan : Yth.*
-*1. Kasuari-9*
-*2. Kasuari-63*
-*3. Kasuari-75*
+*1. Elang*
+*2. Kasuari-6*
+*3. Kasuari-9*
 
 *Perihal : Laporan {$judulLandy} di Wilayah Prov. Jambi Update {$tanggalFormattedFirst}*
 
@@ -536,7 +531,7 @@ EOD;
 *B. KEGIATAN PATROLI SIBER*
 
 {$isiPatroliLandy}
-*C.UPAYA*
+*B.UPAYA*
 
 1.Melakukan pemantauan terhadap akun yang menyebarkan berita atau isu yang menyudutkan pemerintahan.
 
@@ -546,39 +541,6 @@ EOD;
 
 *DUMP. TTD: Merpati - 14*
 EOD;
-        } else {
-            // Format untuk Patroli MBG (yang pertama)
-            $narasiPatroliLandy = <<<EOD
-*Kepada Yth:*
-*1. Rajawali*
-*2. Elang*
-
-*Dari: Merpati-14*
-
-*Tembusan : Yth.*
-*1. Kasuari-6*
-*2. Kasuari-9*
-
-*Perihal : Laporan {$judulLandy} di Wilayah Prov. Jambi Update {$tanggalFormattedFirst}*
-
-*A. EXECUTIVE SUMMARY*
-
-{$executiveSummary}
-
-*B. KEGIATAN PATROLI SIBER*
-
-{$isiPatroliLandy}
-*C.UPAYA*
-
-1.Melakukan pemantauan terhadap akun yang menyebarkan berita atau isu yang menyudutkan pemerintahan.
-
-2.Melakukan pemetaan terhadap postingan ataupun berita tendensius dan hoax serta penyebarnya yang tersebar di dunia maya.
-
-3.Melakukan kontra dan report terhadap isu sensitif yang efeknya diperkirakan cukup besar dan nyata baik dengan tulisan maupun dengan meme yang bersifat menarik.
-
-*DUMP. TTD: Merpati - 14*
-EOD;
-        }
 
         $nama_akun = [];
         $kategori = [];
@@ -898,10 +860,7 @@ EOD;
         }
         
         // Get current time for update
-        $currentTime = date('H:i');
-        $waktuFormatted = $currentTime . ' WIB';
-        
-        $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText} yakni terkait Penanganan Bencana Alam di Medan, Sumatera Barat dan Aceh, Isu Deforestasi, serta Polemik penanganan bencana. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
+        $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText} yakni terkait Konten Provokatif Mendiskreditkan Pemerintah, Isu Deforestasi, serta Polemik penanganan bencana. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
 
         $narasiPatroliBencana = <<<EOD
 *Kepada Yth.: Kasuari-6*
@@ -916,7 +875,7 @@ EOD;
 *5. Kasuari-25*
 *6. Kasuari-63*
 
-*Perihal : {$judulBencana} di Wilayah Merpati-14 (Update {$tanggalFormattedFirst} Pukul {$waktuFormatted})*
+*Perihal : {$judulBencana} di Wilayah Merpati-14 (Update {$tanggalFormattedFirst})*
 
 *A. EXECUTIVE SUMMARY*
 
@@ -924,7 +883,7 @@ EOD;
 
 *B. HASIL PATROLI SIBER*
 
-{$isiPatroliBencana}*C.UPAYA*
+{$isiPatroliBencana}*B.UPAYA*
 
 1. Melakukan upaya RAS dan melakukan Kontra narasi melalui kolom komentar.
 
@@ -932,7 +891,7 @@ EOD;
 
 3. Melakukan profiling terhadap pemilik akun, afiliasi akun, dst.
 
-*D. DOKUMENTASI LAPORAN (MATRIK AKUN DAN PROFILLING).*
+*C. DOKUMENTASI LAPORAN (MATRIK AKUN DAN PROFILLING).*
 
 Nilai : Ambon-1
 DUMP.

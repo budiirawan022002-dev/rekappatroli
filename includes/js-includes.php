@@ -17,7 +17,7 @@
 <script src="js/custom/result-handler.js"></script>
 
 <!-- AJAX Handler (load last) -->
-<script src="js/ajax-handler.js"></script>
+<script src="js/ajax-handler.js?v=<?php echo filemtime(__DIR__ . '/../js/ajax-handler.js'); ?>"></script>
 
 
 

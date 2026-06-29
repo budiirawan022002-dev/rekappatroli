@@ -2,6 +2,9 @@
 require 'vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpWord\TemplateProcessor;
 use Dompdf\Dompdf; // Untuk membuat file PDF
 
@@ -44,6 +47,259 @@ function toTitleCase($text) {
  * @return array Data yang diproses, termasuk data akun, data link, dan total per sheet.
  */
 
+
+/**
+ * Ambil nilai sel Excel sebagai string/angka (termasuk hasil formula).
+ */
+function extractExcelCellScalarValue($cell)
+{
+    $cellValue = '';
+
+    try {
+        if ($cell->isFormula()) {
+            $cellValue = $cell->getCalculatedValue();
+        } else {
+            $cellValue = $cell->getValue();
+        }
+    } catch (Exception $e) {
+        try {
+            $cellValue = $cell->getFormattedValue();
+        } catch (Exception $e2) {
+            return '';
+        }
+    }
+
+    if ($cellValue === null || is_object($cellValue) || is_array($cellValue)) {
+        return '';
+    }
+
+    return trim((string)$cellValue);
+}
+
+/**
+ * Ambil nilai sel; jika ada hyperlink, prioritaskan URL tujuan (untuk link postingan).
+ */
+function extractExcelCellLinkValue($cell)
+{
+    try {
+        $hyperlink = $cell->getHyperlink();
+        if ($hyperlink !== null) {
+            $url = trim((string)$hyperlink->getUrl());
+            if ($url !== '' && $url !== '#') {
+                return $url;
+            }
+        }
+    } catch (Exception $e) {
+        // Abaikan, fallback ke nilai sel
+    }
+
+    return extractExcelCellScalarValue($cell);
+}
+
+/**
+ * Apakah nilai hanya nomor urut baris (bukan nama akun)?
+ */
+function isLikelyCipopSequenceNumber($value)
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return false;
+    }
+
+    return preg_match('/^\d+$/', $value) === 1;
+}
+
+/**
+ * Apakah nilai angka/metrik engagement (bukan nama akun)?
+ */
+function isLikelyCipopMetricValue($value)
+{
+    $value = trim((string)$value);
+    if ($value === '' || isLikelyCipopHeaderLabel($value)) {
+        return false;
+    }
+
+    $numeric = str_replace([',', ' '], '', $value);
+
+    return $numeric !== '' && is_numeric($numeric);
+}
+
+/**
+ * Apakah nilai adalah label header template (bukan data)?
+ */
+function isLikelyCipopHeaderLabel($value)
+{
+    $upper = strtoupper(trim((string)$value));
+    $labels = [
+        'AKUN', 'NAMA AKUN', 'NAMA', 'LINK', 'LINK POSTINGAN', 'LINK AKUN',
+        'VIEWS', 'VIEW', 'LIKE', 'LIKES', 'COMMENTS', 'COMMENT', 'KOMENTAR',
+        'SHARES', 'SHARE', 'RETWEETS', 'RETWEET', 'TOPIK', 'NO', 'ENGAGEMENT',
+    ];
+
+    return in_array($upper, $labels, true);
+}
+
+/**
+ * Ambil username/nama akun dari URL media sosial jika kolom akun kosong.
+ */
+function deriveAccountNameFromSocialLink($url)
+{
+    $url = trim((string)$url);
+    if ($url === '') {
+        return '';
+    }
+
+    $patterns = [
+        '#instagram\.com/([^/?#]+)/#i',
+        '#instagram\.com/([^/?#]+)$#i',
+        '#(?:facebook|fb)\.com/([^/?#]+)/?#i',
+        '#x\.com/([^/?#]+)/#i',
+        '#twitter\.com/([^/?#]+)/#i',
+        '#tiktok\.com/@([^/?#]+)#i',
+        '#youtube\.com/@([^/?#]+)#i',
+        '#youtube\.com/channel/([^/?#]+)#i',
+        '#snackvideo\.com/@([^/?#]+)#i',
+    ];
+
+    $skip = ['share', 'groups', 'photo', 'photos', 'videos', 'watch', 'permalink.php', 'p', 'reel', 'reels', 'i', 'status', '100084842724923'];
+
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $url, $matches)) {
+            $candidate = trim((string)($matches[1] ?? ''));
+            if ($candidate === '' || in_array(strtolower($candidate), $skip, true)) {
+                continue;
+            }
+            if (isLikelyCipopMetricValue($candidate) || isLikelyCipopSequenceNumber($candidate)) {
+                continue;
+            }
+            return $candidate;
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Deteksi kolom akun, link, dan engagement dari header sheet Cipop (baris 1–6).
+ */
+function detectCipopSheetColumns($sheet)
+{
+    $map = [
+        'account' => 2,
+        'link' => 3,
+        'topic' => null,
+        'views' => null,
+        'like' => null,
+        'comments' => null,
+        'shares' => null,
+    ];
+
+    $headerByCol = [];
+
+    for ($headerRow = 1; $headerRow <= 3; $headerRow++) {
+        for ($col = 1; $col <= 26; $col++) {
+            $colLetter = Coordinate::stringFromColumnIndex($col);
+            $col0 = $col - 1;
+            $raw = $sheet->getCell($colLetter . $headerRow)->getCalculatedValue();
+            $val = strtoupper(trim((string)$raw));
+            if ($val === '' || $val === 'ENGAGEMENT') {
+                continue;
+            }
+
+            if (preg_match('/^(NAMA\s*)?AKUN$/', $val) || $val === 'NAMA') {
+                $headerByCol[$col0]['account'] = true;
+            } elseif (strpos($val, 'LINK') !== false) {
+                $headerByCol[$col0]['link'] = true;
+            } elseif ($val === 'TOPIK' || $val === 'TOPIC') {
+                $headerByCol[$col0]['topic'] = true;
+            } elseif (in_array($val, ['VIEWS', 'VIEW', 'TAYANGAN'], true)) {
+                $headerByCol[$col0]['views'] = true;
+            } elseif (in_array($val, ['LIKE', 'LIKES', 'SUKA'], true)) {
+                $headerByCol[$col0]['like'] = true;
+            } elseif (in_array($val, ['COMMENTS', 'COMMENT', 'KOMENTAR', 'KOMENTARAN'], true)) {
+                $headerByCol[$col0]['comments'] = true;
+            } elseif (in_array($val, ['SHARES', 'SHARE', 'RETWEETS', 'RETWEET', 'BAGIKAN'], true)) {
+                $headerByCol[$col0]['shares'] = true;
+            }
+        }
+    }
+
+    foreach ($headerByCol as $col0 => $types) {
+        if (!empty($types['account'])) {
+            $map['account'] = $col0;
+        }
+        if (!empty($types['link'])) {
+            $map['link'] = $col0;
+        }
+    }
+
+    $linkCol = (int)$map['link'];
+
+    // Format langsung: LINK lalu VIEWS, LIKE, COMMENTS, SHARES (Form Media Sosial)
+    if (!empty($headerByCol[$linkCol + 1]['views'])) {
+        $map['views'] = $linkCol + 1;
+        $map['like'] = !empty($headerByCol[$linkCol + 2]['like']) ? $linkCol + 2 : ($linkCol + 2);
+        $map['comments'] = !empty($headerByCol[$linkCol + 3]['comments']) ? $linkCol + 3 : ($linkCol + 3);
+        $map['shares'] = !empty($headerByCol[$linkCol + 4]['shares']) ? $linkCol + 4 : ($linkCol + 4);
+    } else {
+        foreach (['views', 'like', 'comments', 'shares'] as $metric) {
+            foreach ($headerByCol as $col0 => $types) {
+                if (!empty($types[$metric])) {
+                    $map[$metric] = $col0;
+                }
+            }
+        }
+        if (!empty($headerByCol[$linkCol + 1]['topic'])) {
+            $map['topic'] = $linkCol + 1;
+        }
+    }
+
+    // Fallback format Cipop/Danantara: B=no, C=akun, D=link
+    if ($map['views'] === null && $linkCol === 3) {
+        if (!empty($headerByCol[4]['views'])) {
+            $map['views'] = 4;
+            $map['like'] = 5;
+            $map['comments'] = 6;
+            $map['shares'] = 7;
+        } else {
+            $map['topic'] = $map['topic'] ?? 4;
+            $map['like'] = $map['like'] ?? 5;
+            $map['views'] = $map['views'] ?? 6;
+            $map['comments'] = $map['comments'] ?? 7;
+            $map['shares'] = $map['shares'] ?? 8;
+        }
+    } elseif ($map['views'] === null && $linkCol === 1) {
+        $map['views'] = 3;
+        $map['like'] = 4;
+        $map['comments'] = 5;
+        $map['shares'] = 6;
+    }
+
+    // Kolom topic tidak boleh menimpa kolom engagement
+    if ($map['topic'] !== null && in_array($map['topic'], [$map['views'], $map['like'], $map['comments'], $map['shares']], true)) {
+        $map['topic'] = null;
+    }
+
+    $engagementCols = array_values(array_filter([
+        $map['views'], $map['like'], $map['comments'], $map['shares'],
+    ], static function ($v) {
+        return $v !== null;
+    }));
+
+    $accountCol = (int)$map['account'];
+    if ($accountCol >= $linkCol || in_array($accountCol, $engagementCols, true)) {
+        $accountCol = 2;
+        for ($c = 0; $c < $linkCol; $c++) {
+            if (!empty($headerByCol[$c]['account']) && !in_array($c, $engagementCols, true)) {
+                $accountCol = $c;
+                break;
+            }
+        }
+        $map['account'] = $accountCol;
+    }
+
+    return $map;
+}
 
 function prosesExcelFiles($files, $sheetsToRead)
 {
@@ -102,6 +358,9 @@ function prosesExcelFiles($files, $sheetsToRead)
                         
                         error_log("Sheet dimensions: $highestRow rows x $highestColumn columns");
 
+                        $cipopColumns = detectCipopSheetColumns($sheet);
+                        error_log("Cipop column map for '$sheetName': " . json_encode($cipopColumns));
+
                         // Array untuk menyimpan data dari sheet ini
                         $dataRows = [];
                         $groupedData = []; // Array untuk mengelompokkan nilai kolom grouping
@@ -125,69 +384,29 @@ function prosesExcelFiles($files, $sheetsToRead)
                             $cellIterator->setIterateOnlyExistingCells(false); // Loop semua sel, termasuk yang kosong
 
                             $data = [];
+                            $cellLinks = [];
                             $cellIndex = 0;
+                            $maxColumnIndex = 25; // A–Z
                             foreach ($cellIterator as $cell) {
-                                if ($cellIndex <= 6) { // Ambil kolom 0 sampai 6 (7 kolom total)
-                                    // Get cell value safely - handle formulas, objects, and other types
-                                    $cellValue = $cell->getValue();
-                                    
-                                    // If it's an object or array, try to get string representation
-                                    if (is_object($cellValue) || is_array($cellValue)) {
-                                        // Try to get calculated value for formulas
-                                        try {
-                                            $calculatedValue = $cell->getCalculatedValue();
-                                            // Additional check for calculated value
-                                            if (is_object($calculatedValue) || is_array($calculatedValue)) {
-                                                $cellValue = ''; // Can't convert object/array to string
-                                            } else if (is_string($calculatedValue) || is_numeric($calculatedValue)) {
-                                                $cellValue = (string)$calculatedValue;
-                                            } else {
-                                                $cellValue = ''; // Fallback to empty string
-                                            }
-                                        } catch (Exception $e) {
-                                            // If calculated value fails, try formatted value
-                                            try {
-                                                $formattedValue = $cell->getFormattedValue();
-                                                // Additional check for formatted value
-                                                if (is_object($formattedValue) || is_array($formattedValue)) {
-                                                    $cellValue = ''; // Can't convert object/array to string
-                                                } else {
-                                                    $cellValue = (string)$formattedValue;
-                                                }
-                                            } catch (Exception $e2) {
-                                                $cellValue = ''; // Final fallback
-                                                error_log("Row $rowIndex, Column $cellIndex: Failed to extract cell value: " . $e2->getMessage());
-                                            }
-                                        }
-                                    } else if ($cellValue === null) {
-                                        $cellValue = '';
-                                    } else {
-                                        // Ensure it's a string
-                                        $cellValue = (string)$cellValue;
-                                    }
-                                    
-                                    // Final safety check - if somehow we still have an object/array, convert to empty string
-                                    if (is_object($cellValue) || is_array($cellValue)) {
-                                        error_log("Row $rowIndex, Column $cellIndex: Final safety conversion - object/array to empty string");
-                                        $cellValue = '';
-                                    }
-                                    
-                                    $data[] = $cellValue;
+                                if ($cellIndex <= $maxColumnIndex) {
+                                    $scalarValue = extractExcelCellScalarValue($cell);
+                                    $linkValue = extractExcelCellLinkValue($cell);
+                                    $data[] = $scalarValue;
+                                    $cellLinks[] = $linkValue;
                                 }
                                 $cellIndex++;
-                                if ($cellIndex > 6) {
-                                    break; // Stop setelah kolom 6
+                                if ($cellIndex > $maxColumnIndex) {
+                                    break;
                                 }
                             }
-                            
-                            // Pastikan array $data memiliki minimal 7 elemen (kolom 0-6)
-                            while (count($data) < 7) {
-                                $data[] = ''; // Isi dengan string kosong jika kolom tidak ada
+
+                            while (count($data) < ($maxColumnIndex + 1)) {
+                                $data[] = '';
+                                $cellLinks[] = '';
                             }
 
-                            // Log first few rows for debugging - show all 7 columns (0-6)
-                            if ($rowIndex <= 25) { // Increased logging to see more rows
-                                error_log("Row $rowIndex data preview (columns 0-6): " . json_encode($data));
+                            if ($rowIndex <= 25) {
+                                error_log("Row $rowIndex data preview (columns 0-$maxColumnIndex): " . json_encode($data));
                                 
                                 // Additional debugging for problematic cells
                                 foreach ($data as $colIndex => $cellValue) {
@@ -259,16 +478,19 @@ function prosesExcelFiles($files, $sheetsToRead)
                             $linkColumn = null;
                             $linkValue = '';
                             
-                            // Scan all columns for URLs, prioritizing column 2 (index 1)
-                            $columnsToCheck = [1, 0, 2, 3, 4, 5, 6]; // Start with column 2, then 1, then others up to column 6
+                            $preferredLinkCol = (int)($cipopColumns['link'] ?? 3);
+                            $columnsToCheck = array_values(array_unique([
+                                $preferredLinkCol, 3, 2, 1, 0, 4, 5, 6, 7, 8,
+                            ]));
                             
                             foreach ($columnsToCheck as $col) {
-                                if (isset($data[$col]) && $isUrl($data[$col]) && $isValidUrl($data[$col])) {
+                                $candidate = trim((string)($cellLinks[$col] ?? $data[$col] ?? ''));
+                                if ($candidate !== '' && $isUrl($candidate) && $isValidUrl($candidate)) {
                                     $linkColumn = $col;
-                                    $linkValue = trim((string)$data[$col]);
+                                    $linkValue = $candidate;
                                     $linkDetectionCount++;
                                     error_log("Row $rowIndex: Link found in column " . ($col + 1) . ": " . substr($linkValue, 0, 50) . "...");
-                                    break; // Use the first valid URL found
+                                    break;
                                 }
                             }
 
@@ -290,41 +512,45 @@ function prosesExcelFiles($files, $sheetsToRead)
                                 continue;
                             }
 
-                            // IMPROVED: Account name detection - prioritize column 3 (index 2)
-                            $groupColumn = 2; // Default to column 3 (index 2)
+                            // IMPROVED: Account name — hanya kolom AKUN (C), kosong = carry-forward
+                            $groupColumn = (int)$cipopColumns['account'];
                             $groupValue = '';
-                            
-                            // Helper function to check if value is valid for account name
-                            $isValidAccountName = function($value) {
-                                return !empty(trim((string)$value)) && 
-                                       !is_object($value) && 
-                                       !is_array($value) && 
-                                       trim((string)$value) !== '{}';
+                            $accountColIndex = (int)$cipopColumns['account'];
+
+                            $isValidAccountName = function ($value) {
+                                $value = trim((string)$value);
+                                if ($value === '' || is_object($value) || is_array($value) || $value === '{}') {
+                                    return false;
+                                }
+                                if (isLikelyCipopSequenceNumber($value) || isLikelyCipopHeaderLabel($value) || isLikelyCipopMetricValue($value)) {
+                                    return false;
+                                }
+                                return true;
                             };
-                            
-                            // Try to get account name from column 3 first (index 2)
-                            if (isset($data[2]) && $isValidAccountName($data[2]) && !$isUrl($data[2])) {
-                                $groupValue = trim((string)$data[2]);
-                                $groupColumn = 2;
-                                error_log("Row $rowIndex: Account name found in column 3: '$groupValue'");
-                            }
-                            // If column 3 is empty or is a URL, try other columns as fallback
-                            else {
-                                $accountColumns = [0, 1, 3, 4, 5, 6]; // Try columns 1, 2, 4, 5, 6, 7 as fallback
-                                foreach ($accountColumns as $col) {
-                                    if (isset($data[$col]) && $isValidAccountName($data[$col]) && 
-                                        !$isUrl($data[$col]) && $col !== $linkColumn) {
-                                        $groupValue = trim((string)$data[$col]);
-                                        $groupColumn = $col;
-                                        error_log("Row $rowIndex: Account name found in fallback column " . ($col + 1) . ": '$groupValue'");
-                                        break;
-                                    }
+
+                            $accountCandidates = array_values(array_unique([$accountColIndex, 2]));
+                            foreach ($accountCandidates as $candidateCol) {
+                                if (!isset($data[$candidateCol])) {
+                                    continue;
+                                }
+                                if ($isValidAccountName($data[$candidateCol]) && !$isUrl($data[$candidateCol])) {
+                                    $groupValue = trim((string)$data[$candidateCol]);
+                                    error_log("Row $rowIndex: Account name found in column " . ($candidateCol + 1) . ": '$groupValue'");
+                                    break;
                                 }
                             }
 
-                            // IMPROVED: Carry-forward logic
+                            if ($groupValue === '' && $lastValidAccountName === null) {
+                                $derivedAccount = deriveAccountNameFromSocialLink($linkValue);
+                                if ($derivedAccount !== '') {
+                                    $groupValue = $derivedAccount;
+                                    error_log("Row $rowIndex: Account name derived from link: '$groupValue'");
+                                }
+                            }
+
+                            // Carry-forward nama akun jika kolom AKUN kosong (jangan pakai nomor urut kolom B)
                             $isCarryForward = false;
-                            if (empty($groupValue)) {
+                            if ($groupValue === '') {
                                 if ($lastValidAccountName !== null) {
                                     $groupValue = $lastValidAccountName;
                                     $isCarryForward = true;
@@ -335,7 +561,6 @@ function prosesExcelFiles($files, $sheetsToRead)
                                     continue;
                                 }
                             } else {
-                                // Update the last valid account name for future carry-forward
                                 $lastValidAccountName = $groupValue;
                                 error_log("Row $rowIndex: Updated last valid account name to: '$groupValue'");
                             }
@@ -352,9 +577,10 @@ function prosesExcelFiles($files, $sheetsToRead)
                                     'kolom6' => $data[6] ?? '', // Kolom G (index 6)
                                     'detected_link_column' => $linkColumn + 1, // Simpan info kolom link yang terdeteksi (1-based)
                                     'detected_group_column' => $groupColumn + 1, // Simpan info kolom group yang terdeteksi (1-based)
-                                    'carry_forward' => $isCarryForward, // Flag if this was carry-forward
-                                    'row_number' => $rowIndex, // Track original row number for debugging
-                                    'all_columns' => $data // Simpan semua data kolom 0-6 untuk referensi
+                                    'carry_forward' => $isCarryForward,
+                                    'row_number' => $rowIndex,
+                                    'all_columns' => $data,
+                                    'engagement_columns' => $cipopColumns,
                                 ];
 
                                 // Kelompokkan nilai berdasarkan kolom grouping
@@ -2132,21 +2358,15 @@ function handlePatroliLandy(
     
     $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText}. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
 
-    // Check if this is "Sore" based on jumlah laporan
-    // Jika 1 laporan = MBG, jika 2 atau lebih = Sore
-    $isSore = $totalPatroliCount >= 2;
-    
-    if ($isSore) {
-        // Format untuk Patroli Sore
-        $narasiPatroliLandy = <<<EOD
-*Kepada Yth.: Kasuari-6*
+    $narasiPatroliLandy = <<<EOD
+*Kepada Yth: Rajawali*
 
 *Dari: Merpati-14*
 
 *Tembusan : Yth.*
-*1. Kasuari-9*
-*2. Kasuari-63*
-*3. Kasuari-75*
+*1. Elang*
+*2. Kasuari-6*
+*3. Kasuari-9*
 
 *Perihal : Laporan {$judulLandy} di Wilayah Prov. Jambi Update {$tanggalFormattedFirst}*
 
@@ -2157,7 +2377,7 @@ function handlePatroliLandy(
 *B. KEGIATAN PATROLI SIBER*
 
 {$isiPatroliLandy}
-*C.UPAYA*
+*B.UPAYA*
 
 1.Melakukan pemantauan terhadap akun yang menyebarkan berita atau isu yang menyudutkan pemerintahan.
 
@@ -2167,39 +2387,6 @@ function handlePatroliLandy(
 
 *DUMP. TTD: Merpati - 14*
 EOD;
-    } else {
-        // Format untuk Patroli MBG (yang pertama)
-        $narasiPatroliLandy = <<<EOD
-*Kepada Yth:*
-*1. Rajawali*
-*2. Elang*
-
-*Dari: Merpati-14*
-
-*Tembusan : Yth.*
-*1. Kasuari-6*
-*2. Kasuari-9*
-
-*Perihal : Laporan {$judulLandy} di Wilayah Prov. Jambi Update {$tanggalFormattedFirst}*
-
-*A. EXECUTIVE SUMMARY*
-
-{$executiveSummary}
-
-*B. KEGIATAN PATROLI SIBER*
-
-{$isiPatroliLandy}
-*C.UPAYA*
-
-1.Melakukan pemantauan terhadap akun yang menyebarkan berita atau isu yang menyudutkan pemerintahan.
-
-2.Melakukan pemetaan terhadap postingan ataupun berita tendensius dan hoax serta penyebarnya yang tersebar di dunia maya.
-
-3.Melakukan kontra dan report terhadap isu sensitif yang efeknya diperkirakan cukup besar dan nyata baik dengan tulisan maupun dengan meme yang bersifat menarik.
-
-*DUMP. TTD: Merpati - 14*
-EOD;
-    }
 
     // Step 2: Process RAS/upaya files
     $currentProgress += $progressStep;
@@ -2938,6 +3125,189 @@ function cleanupHasilDirectory($dirPath = 'hasil')
 }
 
 /**
+ * Convert any uploaded image into JPEG for PPT media replacement.
+ *
+ * @param string $sourcePath
+ * @param string $destPath
+ * @return bool
+ */
+function convertImageToJpegForPpt($sourcePath, $destPath)
+{
+    if (!file_exists($sourcePath)) {
+        return false;
+    }
+
+    $raw = @file_get_contents($sourcePath);
+    if ($raw === false) {
+        return false;
+    }
+
+    if (function_exists('imagecreatefromstring') && function_exists('imagejpeg')) {
+        $img = @imagecreatefromstring($raw);
+        if ($img !== false) {
+            $ok = imagejpeg($img, $destPath, 90);
+            imagedestroy($img);
+            return $ok;
+        }
+    }
+
+    // Fallback if GD is unavailable or image decoding fails.
+    return @copy($sourcePath, $destPath);
+}
+
+/**
+ * Build PPT report using template_ppt/template.pptx.
+ * Replaces date text and six media placeholders with uploaded photos.
+ *
+ * @param string $templatePath
+ * @param string $outputPath
+ * @param string $tanggalInput
+ * @param array $pptFiles
+ * @return bool
+ */
+function createPptReportFromTemplate($templatePath, $outputPath, $tanggalInput, $pptFiles)
+{
+    if (!file_exists($templatePath)) {
+        throw new Exception('Template PPT tidak ditemukan.');
+    }
+
+    if (!class_exists('ZipArchive')) {
+        throw new Exception('Ekstensi ZipArchive belum aktif di server.');
+    }
+
+    $validTmpFiles = [];
+    if (isset($pptFiles['name']) && is_array($pptFiles['name'])) {
+        for ($i = 0; $i < count($pptFiles['name']); $i++) {
+            if (
+                isset($pptFiles['tmp_name'][$i]) &&
+                $pptFiles['error'][$i] === UPLOAD_ERR_OK &&
+                file_exists($pptFiles['tmp_name'][$i])
+            ) {
+                $validTmpFiles[] = $pptFiles['tmp_name'][$i];
+            }
+        }
+    }
+
+    if (count($validTmpFiles) < 1) {
+        throw new Exception('Tidak ada file gambar PPT yang valid.');
+    }
+
+    if (!@copy($templatePath, $outputPath)) {
+        throw new Exception('Gagal menyalin template PPT.');
+    }
+
+    // Template uses these six image slots for content photos (mode lama).
+    $targetMedia = ['ppt/media/image3.jpg', 'ppt/media/image4.jpg', 'ppt/media/image5.jpg', 'ppt/media/image6.jpg', 'ppt/media/image7.jpg', 'ppt/media/image8.jpg'];
+
+    // If user uploads < 6 images, repeat the last image.
+    while (count($validTmpFiles) < count($targetMedia)) {
+        $validTmpFiles[] = end($validTmpFiles);
+    }
+    $validTmpFiles = array_slice($validTmpFiles, 0, count($targetMedia));
+
+    $tmpConvertedFiles = [];
+    foreach ($validTmpFiles as $idx => $tmpPath) {
+        $convertedPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ppt_' . uniqid('', true) . '_' . $idx . '.jpg';
+        if (!convertImageToJpegForPpt($tmpPath, $convertedPath)) {
+            throw new Exception('Gagal memproses gambar PPT ke format JPEG.');
+        }
+        $tmpConvertedFiles[] = $convertedPath;
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($outputPath) !== true) {
+        throw new Exception('Gagal membuka file PPT hasil.');
+    }
+
+    // Replace date in all 3 slides (support {{tanggal}} and existing date format).
+    $tanggalPpt = date('d-m-Y', strtotime($tanggalInput));
+    foreach (['ppt/slides/slide1.xml', 'ppt/slides/slide2.xml', 'ppt/slides/slide3.xml'] as $slideXml) {
+        $xml = $zip->getFromName($slideXml);
+        if ($xml !== false) {
+            $xml = str_replace('{{tanggal}}', $tanggalPpt, $xml);
+            $xml = preg_replace('/\b\d{2}-\d{2}-\d{4}\b/', $tanggalPpt, $xml, 1);
+            $zip->addFromString($slideXml, $xml);
+        }
+    }
+
+    $hasLegacyMediaSlots = true;
+    foreach ($targetMedia as $mediaPath) {
+        if ($zip->locateName($mediaPath) === false) {
+            $hasLegacyMediaSlots = false;
+            break;
+        }
+    }
+    $zip->close();
+
+    if ($hasLegacyMediaSlots) {
+        $zip = new ZipArchive();
+        if ($zip->open($outputPath) !== true) {
+            $zip->close();
+            throw new Exception('Gagal membuka file PPT hasil untuk mode media slot.');
+        }
+        foreach ($targetMedia as $idx => $mediaPath) {
+            $binary = @file_get_contents($tmpConvertedFiles[$idx]);
+            if ($binary === false) {
+                $zip->close();
+                throw new Exception('Gagal membaca gambar sementara PPT.');
+            }
+            $zip->addFromString($mediaPath, $binary);
+        }
+        $zip->close();
+    } else {
+        // Fallback mode: template tidak punya relasi gambar, sisipkan gambar via coordinate.
+        $reader = \PhpOffice\PhpPresentation\IOFactory::createReader('PowerPoint2007');
+        $presentation = $reader->load($outputPath);
+        $slides = $presentation->getAllSlides();
+
+        // Posisi gambar kiri/kanan untuk tiap slide.
+        $xLeft = 150;
+        $xRight = 430;
+        $yImage = 170;
+        $imageWidth = 220;
+        $imageHeight = 250;
+
+        for ($i = 0; $i < 3; $i++) {
+            if (!isset($slides[$i])) {
+                continue;
+            }
+            $slide = $slides[$i];
+
+            $leftPath = $tmpConvertedFiles[$i * 2] ?? null;
+            $rightPath = $tmpConvertedFiles[$i * 2 + 1] ?? null;
+
+            if ($leftPath && file_exists($leftPath)) {
+                $shapeLeft = new \PhpOffice\PhpPresentation\Shape\Drawing\File();
+                $shapeLeft->setPath($leftPath);
+                $shapeLeft->setOffsetX($xLeft);
+                $shapeLeft->setOffsetY($yImage);
+                $shapeLeft->setWidth($imageWidth);
+                $shapeLeft->setHeight($imageHeight);
+                $slide->addShape($shapeLeft);
+            }
+            if ($rightPath && file_exists($rightPath)) {
+                $shapeRight = new \PhpOffice\PhpPresentation\Shape\Drawing\File();
+                $shapeRight->setPath($rightPath);
+                $shapeRight->setOffsetX($xRight);
+                $shapeRight->setOffsetY($yImage);
+                $shapeRight->setWidth($imageWidth);
+                $shapeRight->setHeight($imageHeight);
+                $slide->addShape($shapeRight);
+            }
+        }
+
+        $writer = \PhpOffice\PhpPresentation\IOFactory::createWriter($presentation, 'PowerPoint2007');
+        $writer->save($outputPath);
+    }
+
+    // Cleanup temp converted files.
+    foreach ($tmpConvertedFiles as $tmpFile) {
+        @unlink($tmpFile);
+    }
+    return true;
+}
+
+/**
  * Utility function to clean text for Word document compatibility
  * @param string $text The text to clean
  * @return string The cleaned text
@@ -3011,4 +3381,1325 @@ function cleanTextForWord($text)
     $text = preg_replace('/[<>|*\\\\]/', '', $text);
 
     return $text;
+}
+
+/**
+ * Mapping baris sheet AKUN INDUK pada file Excel Cipop/Danantara.
+ */
+function getAkunIndukSheetMapping()
+{
+    return [
+        'FACEBOOK' => ['row' => 4, 'fields' => ['nama_akun' => 'B', 'link_postingan' => 'C', 'like' => 'D', 'comments' => 'E', 'share' => 'F', 'views' => 'G']],
+        'INSTAGRAM' => ['row' => 7, 'fields' => ['nama_akun' => 'B', 'link_postingan' => 'C', 'like' => 'D', 'comments' => 'E', 'share' => 'F', 'views' => 'G']],
+        'TWITTER' => ['row' => 10, 'fields' => ['nama_akun' => 'B', 'link_postingan' => 'C', 'like' => 'D', 'comments' => 'E', 'share' => 'F', 'views' => 'G']],
+        'TIKTOK' => ['row' => 13, 'fields' => ['nama_akun' => 'B', 'link_postingan' => 'C', 'like' => 'D', 'comments' => 'E', 'share' => 'F', 'views' => 'G']],
+        'SNACKVIDEO' => ['row' => 16, 'fields' => ['nama_akun' => 'B', 'link_postingan' => 'C', 'like' => 'D', 'comments' => 'E', 'share' => 'F', 'views' => 'G']],
+        'YOUTUBE' => ['row' => 19, 'fields' => ['nama_akun' => 'B', 'link_postingan' => 'C', 'like' => 'D', 'comments' => 'E', 'share' => 'F', 'views' => 'G']],
+    ];
+}
+
+/**
+ * Baca data akun induk dari sheet AKUN INDUK file Excel yang di-upload.
+ */
+function readAkunIndukFromUploadedExcel(array $files)
+{
+    $mapping = getAkunIndukSheetMapping();
+    $result = [];
+
+    if (!isset($files['name']) || empty($files['name'][0])) {
+        return $result;
+    }
+
+    for ($i = 0; $i < count($files['name']); $i++) {
+        if (($files['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            continue;
+        }
+
+        $uploadedFile = $files['tmp_name'][$i] ?? '';
+        if ($uploadedFile === '' || !is_file($uploadedFile)) {
+            continue;
+        }
+
+        try {
+            $spreadsheet = IOFactory::load($uploadedFile);
+            $sheet = $spreadsheet->getSheetByName('AKUN INDUK');
+            if (!$sheet) {
+                continue;
+            }
+
+            foreach ($mapping as $platform => $config) {
+                $rowData = ['platform' => $platform];
+                foreach ($config['fields'] as $field => $col) {
+                    $raw = $sheet->getCell($col . $config['row'])->getCalculatedValue();
+                    $rowData[$field] = trim((string)$raw);
+                }
+                $result[$platform] = $rowData;
+            }
+
+            error_log('AKUN INDUK berhasil dibaca dari file: ' . ($files['name'][$i] ?? ''));
+            return $result;
+        } catch (Exception $e) {
+            error_log('readAkunIndukFromUploadedExcel: ' . $e->getMessage());
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Format metrik engagement untuk narasi WA (fallback acak jika sel kosong).
+ */
+function formatWaEngagementMetric($value, $min = 1, $max = 12)
+{
+    $normalized = normalizeLampiranMetricValue($value);
+    if ($normalized === '') {
+        return random_int($min, $max);
+    }
+
+    return (int)round((float)$normalized);
+}
+
+/**
+ * Hitung akun & posting pendukung (exclude baris akun induk dari sheet AKUN INDUK).
+ */
+function buildAkunPendukungStatsPerPlatform($platform, array $dataLink, array $akunIndukRow = [])
+{
+    $rows = $dataLink[$platform] ?? [];
+    $indukLink = trim((string)($akunIndukRow['link_postingan'] ?? ''));
+    $indukName = mb_strtolower(trim((string)($akunIndukRow['nama_akun'] ?? '')));
+
+    $accounts = [];
+    $linkCount = 0;
+
+    foreach ($rows as $row) {
+        $link = trim((string)($row['kolom5'] ?? ''));
+        if ($link === '') {
+            continue;
+        }
+
+        if ($indukLink !== '' && $link === $indukLink) {
+            continue;
+        }
+
+        $name = trim((string)($row['kolom3'] ?? ''));
+        $nameLower = mb_strtolower($name);
+
+        $linkCount++;
+        if ($name !== '' && ($indukName === '' || $nameLower !== $indukName)) {
+            $accounts[$nameLower] = true;
+        }
+    }
+
+    return [
+        'akun' => count($accounts),
+        'posting' => $linkCount,
+    ];
+}
+
+/**
+ * Narasi WA khusus amplifikasi (Kasatgas MBG) — terpisah dari narasi patroli+amplifikasi lengkap.
+ */
+function buildNarasiWaAmplifikasiMbgKhusus(
+    $tanggalFormattedFirst,
+    array $jumlahAkunperSheet,
+    array $jumlahLinkperSheet,
+    array $dataLink,
+    array $akunIndukData
+) {
+    $platformSummary = [
+        ['key' => 'FACEBOOK', 'label' => 'Facebook'],
+        ['key' => 'TWITTER', 'label' => 'Twitter/X'],
+        ['key' => 'INSTAGRAM', 'label' => 'Instagram'],
+        ['key' => 'TIKTOK', 'label' => 'TikTok'],
+        ['key' => 'YOUTUBE', 'label' => 'Youtube'],
+        ['key' => 'SNACKVIDEO', 'label' => 'SnackVideo'],
+    ];
+
+    $totalAkun = 0;
+    $totalLink = 0;
+    $summaryParts = [];
+
+    foreach ($platformSummary as $item) {
+        $akun = (int)($jumlahAkunperSheet[$item['key']] ?? 0);
+        $link = (int)($jumlahLinkperSheet[$item['key']] ?? 0);
+        if ($akun <= 0 && $link <= 0) {
+            continue;
+        }
+        $totalAkun += $akun;
+        $totalLink += $link;
+        $summaryParts[] = "*{$item['label']}* sebanyak {$akun} akun ({$link} postingan)";
+    }
+
+    $summaryText = 'seluruh platform media sosial';
+    if (count($summaryParts) === 1) {
+        $summaryText = $summaryParts[0];
+    } elseif (count($summaryParts) > 1) {
+        $lastPart = array_pop($summaryParts);
+        $summaryText = implode(', ', $summaryParts) . ', serta ' . $lastPart;
+    }
+
+    $sectionAPlatforms = [
+        ['key' => 'FACEBOOK', 'wa' => 'Facebook'],
+        ['key' => 'INSTAGRAM', 'wa' => 'Instagram'],
+        ['key' => 'TWITTER', 'wa' => 'Twitter'],
+        ['key' => 'TIKTOK', 'wa' => 'Tiktok'],
+        ['key' => 'YOUTUBE', 'wa' => 'Youtube'],
+        ['key' => 'SNACKVIDEO', 'wa' => 'SnackVideo'],
+    ];
+
+    $sectionA = "A. Amplifikasi Akun Induk\n\n";
+    $idxA = 1;
+
+    foreach ($sectionAPlatforms as $plat) {
+        $induk = $akunIndukData[$plat['key']] ?? [];
+        $nama = trim((string)($induk['nama_akun'] ?? ''));
+        $link = trim((string)($induk['link_postingan'] ?? ''));
+
+        if ($nama === '' && $link === '') {
+            continue;
+        }
+
+        if ($nama === '') {
+            $nama = 'Akun ' . $plat['wa'];
+        }
+
+        $like = formatWaEngagementMetric($induk['like'] ?? '');
+        $comments = formatWaEngagementMetric($induk['comments'] ?? '');
+        $share = formatWaEngagementMetric($induk['share'] ?? '');
+        $views = formatWaEngagementMetric($induk['views'] ?? '', 2, 15);
+
+        $linkPart = $link !== '' ? " ({$link})" : '';
+        $sectionA .= "{$idxA}. Akun {$plat['wa']} {$nama}{$linkPart}, dengan engagement:\n";
+        $sectionA .= "- {$like} Like\n";
+        $sectionA .= "- {$comments} Comments\n";
+        $sectionA .= "- {$share} Share\n";
+        $sectionA .= "- {$views} View\n\n";
+        $idxA++;
+    }
+
+    if ($idxA === 1) {
+        $sectionA .= "(Data akun induk tidak ditemukan pada sheet AKUN INDUK file Excel)\n\n";
+    }
+
+    $sectionB = "B. Amplikasi dengan Akun Pendukung (Yang melakukan interaksi terhadap postingan Akun Induk)\n\n";
+    $idxB = 1;
+
+    $pendukungLabels = [
+        'FACEBOOK' => 'Facebook',
+        'INSTAGRAM' => 'Instagram',
+        'TWITTER' => 'Twitter',
+        'TIKTOK' => 'Tiktok',
+        'YOUTUBE' => 'Youtube',
+        'SNACKVIDEO' => 'SnackVideo',
+    ];
+
+    foreach ($pendukungLabels as $key => $label) {
+        $pendukung = buildAkunPendukungStatsPerPlatform($key, $dataLink, $akunIndukData[$key] ?? []);
+        if ($pendukung['akun'] <= 0 && $pendukung['posting'] <= 0) {
+            continue;
+        }
+
+        $sectionB .= "{$idxB}. {$label}\n";
+        $sectionB .= "- {$pendukung['akun']} Jumlah Akun\n";
+        $sectionB .= "- {$pendukung['posting']} Jumlah Postingan\n\n";
+        $idxB++;
+    }
+
+    if ($idxB === 1) {
+        $sectionB .= "(Tidak ada data akun pendukung pada file Excel)\n\n";
+    }
+
+    return <<<EOD
+*Kepada        : Yth. Kasatgas MBG*
+
+*Dari              : Katimwil Jambi / Merpati-14*
+
+*Tembusan  :*
+*1. Yth. Kabag Ops MBG*
+*2. Kabag Anev MBG*
+
+*Perihal        : Laporan Hasil Amplifikasi Konten Meme dan Video terkait Dukungan Program Makan Bergizi Gratis (Update {$tanggalFormattedFirst})*
+
+Pada {$tanggalFormattedFirst}, Tim MBG Merpati-14 Jambi telah melaksanakan operasi amplifikasi konten meme dan video terkait dukungan terhadap Program Makan Bergizi Gratis (MBG). Amplifikasi melibatkan sebanyak *{$totalAkun} akun* dengan total sebaran mencapai *{$totalLink} tautan/postingan*. Rincian pelaksanaan amplifikasi meliputi {$summaryText}. Adapun hasil selengkapnya dilaporkan sebagai berikut:
+
+{$sectionA}{$sectionB}Dokumentasi Terlampir
+*DUMP. MERPATI-14*
+EOD;
+}
+
+/**
+ * Bangun narasi amplifikasi (section C) — ringkasan per platform, detail link di file Excel.
+ */
+function buildNarasiAmplifikasiMbg($dataLink, $jumlahAkunperSheet, $jumlahLinkperSheet)
+{
+    $platforms = [
+        'FACEBOOK' => ['label' => 'Facebook', 'letter' => 'a'],
+        'TWITTER' => ['label' => 'Twitter', 'letter' => 'b'],
+        'INSTAGRAM' => ['label' => 'Instagram', 'letter' => 'c'],
+        'TIKTOK' => ['label' => 'Tiktok', 'letter' => 'd'],
+        'SNACKVIDEO' => ['label' => 'Snackvideo', 'letter' => 'e'],
+        'YOUTUBE' => ['label' => 'Youtube', 'letter' => 'f'],
+    ];
+
+    $output = "*C. AMPLIFIKASI MELALUI PLATFORM FACEBOOK, X, INSTAGRAM, TIKTOK, YOUTUBE DAN SNACKVIDEO, SEBAGAI BERIKUT:*\n";
+
+    foreach ($platforms as $sheet => $info) {
+        $links = $dataLink[$sheet] ?? [];
+        $linkCount = $jumlahLinkperSheet[$sheet] ?? count($links);
+        if ($linkCount <= 0) {
+            continue;
+        }
+
+        $akunCount = $jumlahAkunperSheet[$sheet] ?? 0;
+        $output .= "{$info['letter']}. {$info['label']} menggunakan sebanyak {$akunCount} Akun, dengan total {$linkCount} link\n";
+    }
+
+    $output .= "\n";
+    return $output;
+}
+
+/**
+ * Konfigurasi section platform pada sheet LAMPIRAN.
+ */
+function getLampiranPlatformSectionsConfig()
+{
+    return [
+        ['sheet' => 'FACEBOOK', 'label' => 'FACEBOOK', 'sharesHeader' => 'SHARES', 'match' => '/^FACEBOOK$/i'],
+        ['sheet' => 'INSTAGRAM', 'label' => 'INSTAGRAM', 'sharesHeader' => 'SHARES', 'match' => '/^INSTAGRAM$/i'],
+        ['sheet' => 'TWITTER', 'label' => 'TWITTER|X.COM', 'sharesHeader' => 'RETWEETS', 'match' => '/^TWITTER/i'],
+        ['sheet' => 'TIKTOK', 'label' => 'TIKTOK', 'sharesHeader' => 'SHARES', 'match' => '/^TIKTOK$/i'],
+        ['sheet' => 'YOUTUBE', 'label' => 'YOUTUBE', 'sharesHeader' => 'SHARES', 'match' => '/^YOUTUBE$/i'],
+        ['sheet' => 'SNACKVIDEO', 'label' => 'SNACKVIDEO', 'sharesHeader' => 'SHARES', 'match' => '/^SNACKVIDEO$/i'],
+    ];
+}
+
+/**
+ * Temukan baris header platform di sheet LAMPIRAN.
+ */
+function findLampiranPlatformHeaders($sheet, array $configs)
+{
+    $headers = [];
+    $highest = (int)$sheet->getHighestRow();
+
+    for ($r = 1; $r <= $highest; $r++) {
+        $label = trim((string)$sheet->getCell('B' . $r)->getCalculatedValue());
+        if ($label === '') {
+            continue;
+        }
+        foreach ($configs as $cfg) {
+            if (preg_match($cfg['match'], $label)) {
+                $headers[] = [
+                    'sheet' => $cfg['sheet'],
+                    'headerRow' => $r,
+                    'headerLabel' => $label,
+                ];
+                break;
+            }
+        }
+    }
+
+    usort($headers, function ($a, $b) {
+        return $a['headerRow'] <=> $b['headerRow'];
+    });
+
+    return $headers;
+}
+
+/**
+ * Deteksi apakah nilai sel adalah URL (bukan angka engagement).
+ */
+function isLampiranUrlValue($value)
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return false;
+    }
+
+    return (
+        preg_match('#^https?://#i', $value) ||
+        stripos($value, 'www.') === 0 ||
+        stripos($value, 'facebook.com') !== false ||
+        stripos($value, 'instagram.com') !== false ||
+        stripos($value, 'twitter.com') !== false ||
+        stripos($value, 'x.com') !== false ||
+        stripos($value, 'tiktok.com') !== false ||
+        stripos($value, 'youtube.com') !== false ||
+        stripos($value, 'snackvideo.com') !== false
+    );
+}
+
+/**
+ * Normalisasi nilai engagement dari sel Excel input.
+ */
+function normalizeLampiranMetricValue($value)
+{
+    $value = trim((string)$value);
+    if ($value === '' || isLampiranUrlValue($value) || isLikelyCipopHeaderLabel($value)) {
+        return '';
+    }
+
+    if (isset($value[0]) && $value[0] === '=') {
+        return '';
+    }
+
+    $numeric = str_replace([',', ' '], '', $value);
+    if ($numeric !== '' && is_numeric($numeric)) {
+        return (strpos($value, '.') !== false) ? (float)$numeric : (int)$numeric;
+    }
+
+    return '';
+}
+
+/**
+ * Ambil nilai engagement dari baris data Excel Cipop input.
+ */
+function extractEngagementFromDataRow(array $row)
+{
+    $cols = $row['all_columns'] ?? [];
+    $map = $row['engagement_columns'] ?? detectCipopSheetColumnsFromDefaults($row);
+
+    $result = [
+        'views' => '',
+        'like' => '',
+        'comments' => '',
+        'shares' => '',
+    ];
+
+    $topicCol = $map['topic'] ?? null;
+
+    foreach (['views', 'like', 'comments', 'shares'] as $key) {
+        $colIndex = $map[$key] ?? null;
+        if ($colIndex === null) {
+            continue;
+        }
+        if ($colIndex === ($map['link'] ?? null) || $colIndex === ($map['account'] ?? null)) {
+            continue;
+        }
+        if ($topicCol !== null && $colIndex === $topicCol && ($map['views'] ?? null) !== $topicCol) {
+            continue;
+        }
+        $result[$key] = normalizeLampiranMetricValue($cols[$colIndex] ?? '');
+    }
+
+    $hasAny = false;
+    foreach ($result as $metricValue) {
+        if ($metricValue !== '') {
+            $hasAny = true;
+            break;
+        }
+    }
+
+    if (!$hasAny) {
+        $linkCol = (int)($map['link'] ?? 3);
+        $directBlock = [
+            'views' => normalizeLampiranMetricValue($cols[$linkCol + 1] ?? ''),
+            'like' => normalizeLampiranMetricValue($cols[$linkCol + 2] ?? ''),
+            'comments' => normalizeLampiranMetricValue($cols[$linkCol + 3] ?? ''),
+            'shares' => normalizeLampiranMetricValue($cols[$linkCol + 4] ?? ''),
+        ];
+        foreach ($directBlock as $metricValue) {
+            if ($metricValue !== '') {
+                return $directBlock;
+            }
+        }
+
+        $topicBlock = [
+            'like' => normalizeLampiranMetricValue($cols[$linkCol + 2] ?? ''),
+            'views' => normalizeLampiranMetricValue($cols[$linkCol + 3] ?? ''),
+            'comments' => normalizeLampiranMetricValue($cols[$linkCol + 4] ?? ''),
+            'shares' => normalizeLampiranMetricValue($cols[$linkCol + 5] ?? ''),
+        ];
+        foreach ($topicBlock as $metricValue) {
+            if ($metricValue !== '') {
+                return $topicBlock;
+            }
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Fallback map engagement jika header sheet tidak terdeteksi.
+ */
+function detectCipopSheetColumnsFromDefaults(array $row)
+{
+    $linkCol = isset($row['detected_link_column']) ? ((int)$row['detected_link_column'] - 1) : 3;
+
+    $map = [
+        'account' => 2,
+        'link' => $linkCol,
+        'topic' => 4,
+        'views' => null,
+        'like' => null,
+        'comments' => null,
+        'shares' => null,
+    ];
+
+    if ($linkCol === 3) {
+        if (($map['views'] ?? null) === 4) {
+            $map['like'] = 5;
+            $map['comments'] = 6;
+            $map['shares'] = 7;
+        } else {
+            $map['topic'] = $map['topic'] ?? 4;
+            $map['like'] = $map['like'] ?? 5;
+            $map['views'] = $map['views'] ?? 6;
+            $map['comments'] = $map['comments'] ?? 7;
+            $map['shares'] = $map['shares'] ?? 8;
+        }
+    } elseif ($linkCol === 1) {
+        $map['views'] = 3;
+        $map['like'] = 4;
+        $map['comments'] = 5;
+        $map['shares'] = 6;
+    }
+
+    return $map;
+}
+
+/**
+ * Generate engagement acak untuk lampiran Excel amplifikasi MBG.
+ */
+function generateRandomLampiranEngagement($platform = '')
+{
+    $platform = strtoupper(trim((string)$platform));
+
+    $ranges = [
+        'FACEBOOK'   => ['views' => [180, 9200],  'like' => [12, 480],  'comments' => [0, 42],  'shares' => [0, 22]],
+        'INSTAGRAM'  => ['views' => [120, 7800],  'like' => [18, 520],  'comments' => [0, 35],  'shares' => [0, 15]],
+        'TWITTER'    => ['views' => [60, 3400],   'like' => [8, 240],   'comments' => [0, 58],  'shares' => [0, 110]],
+        'TIKTOK'     => ['views' => [800, 52000], 'like' => [35, 1450], 'comments' => [0, 95],  'shares' => [0, 55]],
+        'YOUTUBE'    => ['views' => [350, 18500], 'like' => [15, 720],  'comments' => [0, 68],  'shares' => [0, 30]],
+        'SNACKVIDEO' => ['views' => [420, 31000], 'like' => [20, 980],  'comments' => [0, 72],  'shares' => [0, 38]],
+    ];
+
+    $r = $ranges[$platform] ?? ['views' => [100, 6000], 'like' => [10, 350], 'comments' => [0, 40], 'shares' => [0, 25]];
+
+    return [
+        'views' => random_int($r['views'][0], $r['views'][1]),
+        'like' => random_int($r['like'][0], $r['like'][1]),
+        'comments' => random_int($r['comments'][0], $r['comments'][1]),
+        'shares' => random_int($r['shares'][0], $r['shares'][1]),
+    ];
+}
+
+/**
+ * Salin gaya baris template LAMPIRAN (kolom B–G).
+ */
+function copyLampiranRowStyle($sheet, $fromRow, $toRow)
+{
+    foreach (['B', 'C', 'D', 'E', 'F', 'G'] as $col) {
+        $sheet->duplicateStyle($sheet->getStyle($col . $fromRow), $col . $toRow);
+        $sheet->setCellValue($col . $toRow, null);
+    }
+
+    $fromDimension = $sheet->getRowDimension($fromRow);
+    $toDimension = $sheet->getRowDimension($toRow);
+    if ($fromDimension->getRowHeight() > 0) {
+        $toDimension->setRowHeight($fromDimension->getRowHeight());
+    }
+}
+
+/**
+ * Tulis nilai engagement ke sel (tanpa formula, angka 0 jika kosong).
+ */
+function writeLampiranMetricCell($sheet, $cellAddress, $value)
+{
+    if ($value === '' || $value === null) {
+        $sheet->setCellValueExplicit($cellAddress, 0, DataType::TYPE_NUMERIC);
+        return;
+    }
+
+    if (is_int($value) || is_float($value)) {
+        $sheet->setCellValueExplicit($cellAddress, $value, DataType::TYPE_NUMERIC);
+        return;
+    }
+
+    $sheet->setCellValueExplicit($cellAddress, (string)$value, DataType::TYPE_STRING);
+}
+
+/**
+ * Buat file Excel lampiran link amplifikasi dari template format_laporan_excel.xlsx.
+ * Layout dinamis: judul platform langsung di atas link tanpa baris kosong di antaranya.
+ */
+function createExcelLaporanMbgLink($outputPath, array $dataLink, $tanggalFormattedFirst, $tanggalNamaFile)
+{
+    $templatePath = __DIR__ . '/template_excel/format_laporan_excel.xlsx';
+    if (!file_exists($templatePath)) {
+        throw new Exception('Template Excel format_laporan_excel.xlsx tidak ditemukan.');
+    }
+
+    $spreadsheet = IOFactory::load($templatePath);
+    $sheet = $spreadsheet->getSheetByName('LAMPIRAN');
+    if (!$sheet) {
+        throw new Exception('Sheet LAMPIRAN tidak ditemukan pada template Excel.');
+    }
+
+    $sheet->setCellValue('B7', 'MERPATI 14 (Periode ' . $tanggalFormattedFirst . ' Pukul 16.00 WIB)');
+
+    $configs = getLampiranPlatformSectionsConfig();
+    $platformHeaderTemplateRow = 11;
+    $dataRowTemplateRow = 12;
+    $currentRow = $platformHeaderTemplateRow;
+    $oldHighestRow = (int)$sheet->getHighestRow();
+
+    foreach ($configs as $cfg) {
+        $rows = $dataLink[$cfg['sheet']] ?? [];
+        if (empty($rows)) {
+            continue;
+        }
+
+        copyLampiranRowStyle($sheet, $platformHeaderTemplateRow, $currentRow);
+        $sheet->setCellValue('B' . $currentRow, $cfg['label']);
+        $sheet->setCellValue('C' . $currentRow, 'LINK POSTINGAN');
+        $sheet->setCellValue('D' . $currentRow, 'VIEWS');
+        $sheet->setCellValue('E' . $currentRow, 'LIKE');
+        $sheet->setCellValue('F' . $currentRow, 'COMMENTS');
+        $sheet->setCellValue('G' . $currentRow, $cfg['sharesHeader']);
+        $currentRow++;
+
+        foreach ($rows as $row) {
+            $namaAkun = trim((string)($row['kolom3'] ?? ''));
+            $link = trim((string)($row['kolom5'] ?? ''));
+            if ($link === '') {
+                continue;
+            }
+
+            copyLampiranRowStyle($sheet, $dataRowTemplateRow, $currentRow);
+            $eng = generateRandomLampiranEngagement($cfg['sheet']);
+
+            $sheet->setCellValueExplicit('B' . $currentRow, $namaAkun, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('C' . $currentRow, $link, DataType::TYPE_STRING);
+            writeLampiranMetricCell($sheet, 'D' . $currentRow, $eng['views']);
+            writeLampiranMetricCell($sheet, 'E' . $currentRow, $eng['like']);
+            writeLampiranMetricCell($sheet, 'F' . $currentRow, $eng['comments']);
+            writeLampiranMetricCell($sheet, 'G' . $currentRow, $eng['shares']);
+
+            $currentRow++;
+        }
+    }
+
+    if ($currentRow <= $oldHighestRow) {
+        $sheet->removeRow($currentRow, $oldHighestRow - $currentRow + 1);
+    }
+
+    $writer = new Xlsx($spreadsheet);
+    $writer->save($outputPath);
+
+    return $outputPath;
+}
+
+/**
+ * Bangun isi patroli MBG (section B) dari processedReports.
+ */
+function buildIsiPatroliMbgNarrative($processedReports)
+{
+    $isiPatroli = "";
+    foreach ($processedReports as $platform => $reports) {
+        if (empty($reports)) {
+            continue;
+        }
+
+        $platformFormatted = strtoupper($platform);
+        $isiPatroli .= "*{$platformFormatted}*\n\n";
+
+        $platformNo = 1;
+        foreach ($reports as $report) {
+            $cleanName = $report['name'];
+            $cleanLink = $report['link'];
+            $cleanNarrative = $report['narrative'];
+            $tanggal_postingan = $report['tanggal_postingan'] ?? '';
+            $wilayah = $report['wilayah'] ?? '';
+            $korelasi = $report['korelasi'] ?? '(Tidak ditemukan)';
+            $afiliasi = $report['afiliasi'] ?? '(Tidak ditemukan)';
+
+            $profiling = '';
+            if (isset($report['profilingData']) && !empty($report['profilingData'])) {
+                $pd = $report['profilingData'];
+                $profilingParts = [];
+                if (isset($pd['nama'])) $profilingParts[] = toTitleCase($pd['nama']);
+                if (isset($pd['jenis_kelamin'])) $profilingParts[] = toTitleCase($pd['jenis_kelamin']);
+                if (isset($pd['umur'])) $profilingParts[] = $pd['umur'] . " Tahun";
+                if (isset($pd['pekerjaan'])) $profilingParts[] = toTitleCase($pd['pekerjaan']);
+                if (isset($pd['provinsi']) && isset($pd['kabupaten'])) {
+                    $profilingParts[] = toTitleCase($pd['kabupaten']) . ", " . toTitleCase($pd['provinsi']);
+                } elseif (isset($pd['provinsi'])) {
+                    $profilingParts[] = toTitleCase($pd['provinsi']);
+                }
+                $profiling = implode(', ', $profilingParts);
+            } else {
+                $profiling = $report['profiling'] ?? '';
+            }
+
+            $isiPatroli .= "{$platformNo}.\tTermonitor akun {$platformFormatted} {$cleanName} ({$cleanLink}) memposting narasi provokatif yaitu \"{$cleanNarrative}\"\n\n";
+
+            if (!empty($cleanName)) {
+                $isiPatroli .= "Berdasarkan pendalaman, akun tersebut dikelola oleh {$cleanName}, dengan profil sebagai berikut:\n\n";
+            }
+
+            $isiPatroli .= "*Akun {$platformFormatted} {$cleanName}*\n";
+            $isiPatroli .= "a. Tanggal Postingan: {$tanggal_postingan}\n";
+            $isiPatroli .= "b. Wilayah: {$wilayah}\n";
+            $isiPatroli .= "c. Nama Akun: {$cleanName}\n";
+            $isiPatroli .= "d. Link Akun: {$cleanLink}\n";
+            $isiPatroli .= "e. Resume Narasi Propaganda: {$cleanNarrative}\n";
+            $isiPatroli .= "f. Profiling Singkat Akun: {$profiling}\n";
+            $isiPatroli .= "g. Korelasi Dengan Akun Lainnya: {$korelasi}\n";
+            $isiPatroli .= "h. Afiliasi Dengan Influencer/Tokoh Prominen/Pemilik Pasukan Buzzer: {$afiliasi}\n\n";
+
+            $platformNo++;
+        }
+    }
+
+    return $isiPatroli;
+}
+
+/**
+ * Proses gambar cipop untuk Laporan MBG Lengkap (reuse logika KBD).
+ */
+function processCipopImagesForMbg($post, $files, $hasilFolder)
+{
+    $cipopImageType = $post['cipopImageType'] ?? 'upload';
+    $imagePaths = [];
+
+    if ($cipopImageType === 'screenshot') {
+        $cipopLinksRaw = $post['cipopScreenshotLinks'] ?? '';
+        $cipopLinks = array_filter(array_map('trim', preg_split('/\r?\n/', $cipopLinksRaw)));
+        if (count($cipopLinks) < 1 || count($cipopLinks) > 8) {
+            throw new Exception('Masukkan minimal 1 dan maksimal 8 link untuk tangkapan layar cipop.');
+        }
+        $escapedLinks = array_map('escapeshellarg', $cipopLinks);
+        $cmd = 'node ' . escapeshellarg(__DIR__ . '/ambil_ss.js') . ' cipop ' . implode(' ', $escapedLinks);
+        exec($cmd, $output, $ret);
+        $ssDir = __DIR__ . '/ss';
+        $filesArr = [];
+        foreach (glob($ssDir . '/cipop_*.jpg') as $f) {
+            $filesArr[$f] = filemtime($f);
+        }
+        arsort($filesArr);
+        $selectedFiles = array_slice(array_keys($filesArr), 0, count($cipopLinks));
+        $processedCount = 0;
+        foreach ($selectedFiles as $src) {
+            $processedCount++;
+            $timestamp = date('His');
+            $pathInfo = pathinfo(basename($src));
+            $uniqueBasename = $pathInfo['filename'] . '_' . $timestamp . '_' . $processedCount . '.' . $pathInfo['extension'];
+            $dst = $hasilFolder . '/' . $uniqueBasename;
+            copy($src, $dst);
+            $imagePaths[] = $dst;
+        }
+    } else {
+        if (!isset($files['imageFiles']) || count($files['imageFiles']['name']) < 1 || count($files['imageFiles']['name']) > 8) {
+            throw new Exception('Harap unggah minimal 1 gambar dan maksimal 8 gambar cipop.');
+        }
+        for ($i = 0; $i < count($files['imageFiles']['name']); $i++) {
+            if (isset($files['imageFiles']['tmp_name'][$i]) && $files['imageFiles']['error'][$i] === UPLOAD_ERR_OK) {
+                $originalPath = $files['imageFiles']['tmp_name'][$i];
+                $timestamp = date('His');
+                $originalName = $files['imageFiles']['name'][$i];
+                $pathInfo = pathinfo($originalName);
+                $uniqueName = 'cipop_mbg_' . $timestamp . '_' . ($i + 1) . '_' . $pathInfo['filename'] . '.' . $pathInfo['extension'];
+                $destinationPath = __DIR__ . '/template_pdf/' . $uniqueName;
+                if (compressImage($originalPath, $destinationPath, 15)) {
+                    $imagePaths[] = $destinationPath;
+                } else {
+                    throw new Exception('Gagal mengompresi gambar cipop: ' . $files['imageFiles']['name'][$i]);
+                }
+            }
+        }
+    }
+
+    return $imagePaths;
+}
+
+/**
+ * Konversi path gambar ke data URI untuk Dompdf.
+ */
+function cipopMbgImageToDataUri($path)
+{
+    if (!is_string($path) || $path === '' || !file_exists($path)) {
+        return '';
+    }
+
+    $mimeType = mime_content_type($path) ?: 'image/jpeg';
+
+    return 'data:' . $mimeType . ';base64,' . base64_encode(file_get_contents($path));
+}
+
+/**
+ * Ambil caption otomatis dari nama file gambar cipop.
+ */
+function cipopMbgCaptionFromPath($path, $index)
+{
+    $base = pathinfo((string)$path, PATHINFO_FILENAME);
+    $base = preg_replace('/^cipop(_mbg)?_[\d_]+_\d+_/i', '', (string)$base);
+    $base = trim(str_replace(['_', '-'], ' ', (string)$base));
+
+    if ($base === '' || preg_match('/^\d+(\.\d+)?$/', $base)) {
+        return [
+            'name' => 'Konten Amplifikasi ' . ($index + 1),
+            'title' => 'Program MBG Merpati-14',
+        ];
+    }
+
+    return [
+        'name' => ucwords($base),
+        'title' => 'Program MBG Merpati-14',
+    ];
+}
+
+/**
+ * Susun teks statistik link amplifikasi per platform.
+ */
+function buildCipopMbgStatsText(array $jumlahLinkperSheet)
+{
+    $platforms = [
+        'FACEBOOK' => 'Facebook',
+        'TWITTER' => 'Twitter',
+        'INSTAGRAM' => 'Instagram',
+        'TIKTOK' => 'Tiktok',
+        'YOUTUBE' => 'Youtube',
+        'SNACKVIDEO' => 'Snackvideo',
+    ];
+
+    $parts = [];
+    foreach ($platforms as $key => $label) {
+        $count = (int)($jumlahLinkperSheet[$key] ?? 0);
+        if ($count > 0) {
+            $parts[] = $count . ' Link ' . $label;
+        }
+    }
+
+    if (empty($parts)) {
+        return 'Melaksanakan giat amplifikasi terhadap program unggulan &ldquo;Makan Bergizi Gratis (MBG)&rdquo; di Wilayah Merpati-14.';
+    }
+
+    $last = array_pop($parts);
+    $detail = count($parts) > 0 ? implode(', ', $parts) . ' serta ' . $last : $last;
+
+    return 'Melaksanakan giat amplifikasi terhadap program unggulan &ldquo;Makan Bergizi Gratis (MBG)&rdquo; di Wilayah Merpati-14 dengan rincian ' . $detail . '.';
+}
+
+/**
+ * Bagi gambar cipop ke halaman KONTEN, LAPORAN, dan SCREENSHOOT.
+ */
+function distributeCipopMbgImages(array $imagePaths, $isScreenshot = false)
+{
+    $paths = array_values(array_filter($imagePaths, static function ($path) {
+        return is_string($path) && $path !== '' && file_exists($path);
+    }));
+
+    if ($isScreenshot) {
+        return [
+            'konten' => [],
+            'laporan' => [],
+            'screenshots' => $paths,
+            'closing_bg' => $paths[0] ?? null,
+        ];
+    }
+
+    $count = count($paths);
+    $konten = array_slice($paths, 0, min(2, $count));
+    $remaining = array_slice($paths, 2);
+    $laporan = array_slice($remaining, 0, min(3, count($remaining)));
+    $screenshots = array_slice($remaining, 3);
+    $closingBg = $laporan[0] ?? ($konten[0] ?? null);
+
+    return [
+        'konten' => $konten,
+        'laporan' => $laporan,
+        'screenshots' => $screenshots,
+        'closing_bg' => $closingBg,
+    ];
+}
+
+/**
+ * Hitung dimensi gambar agar muat dalam kotak (proporsional, tidak distretch).
+ */
+function cipopMbgScaledImageDimensions($path, $maxWidthPx, $maxHeightPx)
+{
+    $info = @getimagesize($path);
+    if (!$info || empty($info[0]) || empty($info[1])) {
+        return ['width' => $maxWidthPx, 'height' => $maxHeightPx];
+    }
+
+    $width = (int)$info[0];
+    $height = (int)$info[1];
+    $scale = min($maxWidthPx / $width, $maxHeightPx / $height, 1);
+
+    return [
+        'width' => max(1, (int)round($width * $scale)),
+        'height' => max(1, (int)round($height * $scale)),
+    ];
+}
+
+/**
+ * Render tag img dalam frame tabel agar rapi di Dompdf.
+ */
+function cipopMbgRenderImageTag($path, $maxWidthPx = 340, $maxHeightPx = 240, $frameHeightPx = 255)
+{
+    if (!is_string($path) || $path === '' || !file_exists($path)) {
+        return '<table width="100%" height="' . (int)$frameHeightPx . '"><tr><td class="placeholder-box" align="center" valign="middle">Gambar</td></tr></table>';
+    }
+
+    $uri = cipopMbgImageToDataUri($path);
+
+    $dim = cipopMbgScaledImageDimensions($path, $maxWidthPx, $maxHeightPx);
+    $img = '<img src="' . $uri . '" width="' . $dim['width'] . '" height="' . $dim['height'] . '" alt="">';
+
+    return '<table width="100%" height="' . (int)$frameHeightPx . '"><tr><td align="center" valign="middle">' . $img . '</td></tr></table>';
+}
+
+/**
+ * Bangun HTML halaman-halaman isi PDF lampiran Cipop MBG.
+ */
+function buildCipopMbgPdfPagesHtml(array $distribution, array $jumlahLinkperSheet, $tanggalFormattedFirst)
+{
+    $pages = [];
+    $pageNum = 1;
+
+    $renderPageBadge = static function ($num) {
+        return '<div class="page-badge">' . (int)$num . '</div>';
+    };
+
+    $renderCorners = static function ($includeTopRight = false) {
+        $html = '<div class="corner-tl"></div><div class="corner-br"></div>';
+        if ($includeTopRight) {
+            $html .= '<div class="corner-tr"></div>';
+        }
+
+        return $html;
+    };
+
+    if (!empty($distribution['konten'])) {
+        $cells = [];
+        foreach ($distribution['konten'] as $idx => $path) {
+            $caption = cipopMbgCaptionFromPath($path, $idx);
+            $cells[] = '<td>'
+                . '<div class="photo-box">' . cipopMbgRenderImageTag($path, 320, 230, 255) . '</div>'
+                . '<div class="caption-box">'
+                . '<p class="caption-name">' . htmlspecialchars($caption['name'], ENT_QUOTES, 'UTF-8') . '</p>'
+                . '<p class="caption-role">' . htmlspecialchars($caption['title'], ENT_QUOTES, 'UTF-8') . '</p>'
+                . '</div>'
+                . '</td>';
+        }
+        if (count($cells) === 1) {
+            $cells[] = '<td><div class="photo-box">' . cipopMbgRenderImageTag(null, 320, 230, 255) . '</div></td>';
+        }
+
+        $pages[] = '<div class="page page-konten">'
+            . $renderCorners()
+            . $renderPageBadge($pageNum++)
+            . '<h1 class="title-blue">Konten</h1>'
+            . '<table class="konten-grid"><tr>' . implode('', $cells) . '</tr></table>'
+            . '</div>';
+    }
+
+    $statsText = buildCipopMbgStatsText($jumlahLinkperSheet);
+    $laporanPhotos = $distribution['laporan'] ?? [];
+    $photoCenter = $laporanPhotos[0] ?? null;
+    $photoRightTop = $laporanPhotos[1] ?? null;
+    $photoRightBottom = $laporanPhotos[2] ?? null;
+    $hasLaporanPhotos = $photoCenter || $photoRightTop || $photoRightBottom;
+
+    if ($hasLaporanPhotos) {
+        $laporanBody = '<table class="laporan-footer-inner"><tr>'
+            . '<td class="laporan-col-text">' . $statsText . '</td>'
+            . '<td class="laporan-col-center"><div class="laporan-center-box">' . cipopMbgRenderImageTag($photoCenter, 150, 140, 145) . '</div></td>'
+            . '<td class="laporan-col-right">'
+            . '<div class="laporan-right-box top">' . cipopMbgRenderImageTag($photoRightTop, 240, 90, 92) . '</div>'
+            . '<div class="laporan-right-box bottom">' . cipopMbgRenderImageTag($photoRightBottom, 240, 90, 92) . '</div>'
+            . '</td>'
+            . '</tr></table>';
+    } else {
+        $laporanBody = '<div class="laporan-text-only">' . $statsText . '</div>';
+    }
+
+    $pages[] = '<div class="page page-laporan">'
+        . $renderCorners()
+        . $renderPageBadge($pageNum++)
+        . '<div class="laporan-head">'
+        . '<h1 class="title-blue">Laporan</h1>'
+        . '<h2 class="title-black">Amplifikasi Konten pada Media Sosial</h2>'
+        . '</div>'
+        . '<div class="laporan-footer-panel">' . $laporanBody . '</div>'
+        . '</div>';
+
+    $screenshots = $distribution['screenshots'] ?? [];
+    if (!empty($screenshots)) {
+        $chunks = array_chunk($screenshots, 3);
+        foreach ($chunks as $chunk) {
+            while (count($chunk) < 3) {
+                $chunk[] = null;
+            }
+            $cells = [];
+            foreach ($chunk as $path) {
+                $cells[] = '<td><div class="screenshot-box">' . ($path ? cipopMbgRenderImageTag($path, 220, 380, 385) : cipopMbgRenderImageTag(null, 220, 380, 385)) . '</div></td>';
+            }
+            $pages[] = '<div class="page page-screenshot">'
+                . $renderCorners()
+                . $renderPageBadge($pageNum++)
+                . '<h1 class="title-blue">Screenshoot</h1>'
+                . '<table class="screenshot-grid"><tr>' . implode('', $cells) . '</tr></table>'
+                . '</div>';
+        }
+    }
+
+    $closingBg = cipopMbgImageToDataUri($distribution['closing_bg'] ?? '');
+    $bgStyle = $closingBg !== '' ? ' style="background-image:url(' . $closingBg . ');"' : '';
+
+    $pages[] = '<div class="page page-thanks">'
+        . $renderCorners(true)
+        . $renderPageBadge($pageNum++)
+        . '<div class="thanks-bg"' . $bgStyle . '></div>'
+        . '<div class="thanks-dash"></div>'
+        . '<div class="thanks-content">'
+        . '<h1 class="thanks-title">Terimakasih</h1>'
+        . '<p class="thanks-quote">&ldquo;MBG bertujuan untuk meningkatkan kesehatan masyarakat dengan mencukupi gizi anak-anak di Indonesia, mencegah gangguan pertumbuhan dan perkembangan anak (stunting), dan mendukung pembangunan SDM yang bermutu&rdquo;</p>'
+        . '</div>'
+        . '</div>';
+
+    return implode("\n", $pages);
+}
+
+/**
+ * Buat PDF lampiran amplifikasi Cipop MBG (berdasar template_cipop_mbg.html / format_lampiran_cipop_mbg.pdf).
+ */
+function createPdfCipopMbg($outputPath, $imagePaths, $tanggalFormatted, $tanggalFormattedFirst, $tanggalNamaFile, array $jumlahLinkperSheet = [], $isScreenshot = false)
+{
+    $htmlTemplate = __DIR__ . '/template_pdf/template_cipop_mbg.html';
+    $staticTemplatePdf = __DIR__ . '/template_pdf/format_lampiran_cipop_mbg.pdf';
+
+    if (file_exists($htmlTemplate)) {
+        $distribution = distributeCipopMbgImages($imagePaths, $isScreenshot);
+        $contentPages = buildCipopMbgPdfPagesHtml($distribution, $jumlahLinkperSheet, $tanggalFormattedFirst);
+
+        $htmlContent = file_get_contents($htmlTemplate);
+        $htmlContent = str_replace('{{content_pages}}', $contentPages, $htmlContent);
+        $htmlContent = str_replace('{{tanggal}}', htmlspecialchars($tanggalFormatted, ENT_QUOTES, 'UTF-8'), $htmlContent);
+        $htmlContent = str_replace('{{tanggal_2}}', htmlspecialchars($tanggalFormattedFirst, ENT_QUOTES, 'UTF-8'), $htmlContent);
+        $htmlContent = str_replace('{{tanggal_file}}', htmlspecialchars($tanggalNamaFile, ENT_QUOTES, 'UTF-8'), $htmlContent);
+
+        $dompdf = new Dompdf([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled' => true,
+        ]);
+        $dompdf->loadHtml($htmlContent);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+        file_put_contents($outputPath, $dompdf->output());
+
+        return true;
+    }
+
+    if (file_exists($staticTemplatePdf)) {
+        copy($staticTemplatePdf, $outputPath);
+        return true;
+    }
+
+    throw new Exception('Template PDF Cipop MBG tidak ditemukan.');
+}
+
+/**
+ * Proses Laporan MBG Lengkap: patroli + amplifikasi Excel Cipop + output Word/PDF.
+ */
+function handleLaporanMbgLengkap(
+    $processedReports,
+    $tanggalFormatted,
+    $tanggalFormattedFirst,
+    $tanggalNamaFile,
+    $hariFormatted,
+    $hasilFolder,
+    $post,
+    $files,
+    $sheetsToRead,
+    $screenshotPaths,
+    &$narasiMbgLengkap,
+    &$outputPathMbgLengkap,
+    &$outputPathPdfMbgLengkap,
+    &$outputPathPdfCipopMbg,
+    &$outputPathExcelMbgLengkap,
+    &$narasiMbgLengkapAmplifikasi = null,
+    $judulMbgLengkap = 'Temuan Akun Medsos Narasi Negatif dan Dukungan Amplifikasi Program MBG',
+    $startProgress = 30,
+    $progressRange = 30
+) {
+    $totalSteps = 9;
+    $progressStep = $progressRange / $totalSteps;
+    $currentProgress = $startProgress;
+
+    echo json_encode(['progress' => '1/9: Mempersiapkan Laporan MBG Lengkap...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    // Excel Cipop
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '2/9: Memproses data Excel Cipop...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    if (!isset($files['excelFiles']) || empty($files['excelFiles']['name'][0])) {
+        throw new Exception('Upload minimal 1 file Excel Cipop untuk Laporan MBG Lengkap.');
+    }
+
+    $result = prosesExcelFiles($files['excelFiles'], $sheetsToRead);
+    $dataAkun = $result['dataAkun'];
+    $dataLink = $result['dataLink'];
+    $jumlahAkunperSheet = [];
+    $jumlahLinkperSheet = [];
+    foreach ($dataAkun as $sheetName => $groupedData) {
+        $jumlahAkunperSheet[$sheetName] = count($groupedData);
+    }
+    foreach ($dataLink as $sheetName => $dataRows) {
+        $jumlahLinkperSheet[$sheetName] = count($dataRows);
+    }
+
+    $akunIndukData = readAkunIndukFromUploadedExcel($files['excelFiles']);
+
+    // Excel lampiran link amplifikasi (format template_excel)
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '3/9: Membuat file Excel lampiran link amplifikasi...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    $outputPathExcelMbgLengkap = rtrim(str_replace('\\', '/', $hasilFolder), '/') . "/{$tanggalNamaFile} - LAPORAN AMPLIFIKASI MBG MERPATI-14.xlsx";
+    createExcelLaporanMbgLink($outputPathExcelMbgLengkap, $dataLink, $tanggalFormattedFirst, $tanggalNamaFile);
+    if (!is_file($outputPathExcelMbgLengkap)) {
+        error_log("Excel MBG Lengkap gagal dibuat atau tidak ditemukan: {$outputPathExcelMbgLengkap}");
+    } else {
+        error_log("Excel MBG Lengkap berhasil dibuat: {$outputPathExcelMbgLengkap}");
+    }
+
+    // Gambar cipop
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '4/9: Memproses gambar cipop...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    $cipopImagePaths = processCipopImagesForMbg($post, $files, $hasilFolder);
+
+    // Narasi patroli + amplifikasi
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '5/9: Menyusun narasi Laporan MBG Lengkap...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    $isiPatroliMbg = buildIsiPatroliMbgNarrative($processedReports);
+    $narasiAmplifikasi = buildNarasiAmplifikasiMbg($dataLink, $jumlahAkunperSheet, $jumlahLinkperSheet);
+    $narasiMbgLengkapAmplifikasi = buildNarasiWaAmplifikasiMbgKhusus(
+        $tanggalFormattedFirst,
+        $jumlahAkunperSheet,
+        $jumlahLinkperSheet,
+        $dataLink,
+        $akunIndukData
+    );
+
+    $totalPatroliCount = 0;
+    $platformBreakdown = [];
+    foreach ($processedReports as $platform => $reports) {
+        if (!empty($reports)) {
+            $count = count($reports);
+            $totalPatroliCount += $count;
+            $platformBreakdown[] = ucwords(strtolower($platform)) . " ({$count} konten)";
+        }
+    }
+
+    $platformBreakdownText = '';
+    if (count($platformBreakdown) > 1) {
+        $lastPlatform = array_pop($platformBreakdown);
+        $platformBreakdownText = implode(', ', $platformBreakdown) . ' dan ' . $lastPlatform;
+    } else {
+        $platformBreakdownText = implode('', $platformBreakdown);
+    }
+
+    $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText}. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
+
+    $catatanCustom = trim($post['catatanMbgLengkap'] ?? '');
+    if (!empty($catatanCustom)) {
+        $catatanSection = "*D.CATATAN*\n\n{$catatanCustom}";
+    } else {
+        $catatanSection = <<<EOD
+*D.CATATAN*
+
+1. Hasil monitoring {$tanggalFormattedFirst}, bahwa penyebaran konten negatif terkait narasi kontra program MBG di sosial media masih diwarnai dengan konten provokasi untuk terus menggiring opini masyarakat sehingga meragukan kredibilitas pelaksanaan program MBG di wilayah Provinsi Jambi.
+2. Penyebaran postingan mendiskreditkan program MBG (terkait isu dugaan monopoli yayasan/dapur SPPG oleh oknum aparat dan tuduhan aksi massa pendukung bayaran) terus menerus berpotensi memprovokasi berbagai elemen masyarakat di Jambi. Oleh karena itu, patroli siber perlu diintensifkan guna mendalami respon masyarakat dan opini yang berkembang terkait permasalahan tersebut. Selain itu, kontra opini perlu dilakukan untuk meluruskan disinformasi yang beredar.
+3. Giat amplifikasi Konten Siber Binda Jambi berlangsung lancar tanpa kendala. Adapun lokasi giat amplifikasi, Perangkat, Akun dan Personel, aman dan kondusif. Perkembangan selanjutnya dilaporkan pada kesempatan pertama.
+EOD;
+    }
+
+    $narasiMbgLengkap = <<<EOD
+*Kepada Yth: Rajawali*
+
+*Dari: Merpati-14*
+
+*Tembusan :*
+*1. Elang*
+*2. Kasuari - 6*
+*3. Kasuari - 9*
+
+*Perihal : Laporan {$judulMbgLengkap} di Wilayah Prov. Jambi Update {$tanggalFormattedFirst}*
+
+*A. EXECUTIVE SUMMARY*
+
+{$executiveSummary}
+
+*B. KEGIATAN PATROLI SIBER*
+
+{$isiPatroliMbg}{$narasiAmplifikasi}
+{$catatanSection}
+
+*E. DOKUMENTASI TERLAMPIR*
+
+*DUMP. TTD: Merpati-14*
+EOD;
+
+    // RAS / upaya / profiling (sama seperti Patroli Landy)
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '6/9: Memproses foto patroli, upaya, dan profiling...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    $foto_upaya = [];
+    if (isset($files['rasFiles']) && !empty($files['rasFiles']['tmp_name'])) {
+        $timestamp = date('His') . '_' . substr(microtime(true) * 1000, -3);
+        foreach ($files['rasFiles']['tmp_name'] as $index => $tmpPath) {
+            if (!empty($tmpPath) && file_exists($tmpPath)) {
+                $originalName = $files['rasFiles']['name'][$index] ?? 'ras_file.jpg';
+                $pathInfo = pathinfo($originalName);
+                $uniqueName = 'ras_mbg_' . $timestamp . '_' . ($index + 1) . '_' . $pathInfo['filename'] . '.' . ($pathInfo['extension'] ?? 'jpg');
+                $dst = __DIR__ . '/template_word/' . $uniqueName;
+                if (!is_dir(__DIR__ . '/template_word')) {
+                    mkdir(__DIR__ . '/template_word', 0755, true);
+                }
+                if (copy($tmpPath, $dst)) {
+                    $foto_upaya[] = $dst;
+                }
+            }
+        }
+    }
+
+    $foto_profiling = [];
+    if (isset($files['profilingFiles']) && !empty($files['profilingFiles']['tmp_name'])) {
+        $timestamp = date('His') . '_' . substr(microtime(true) * 1000, -3);
+        foreach ($files['profilingFiles']['tmp_name'] as $index => $tmpPath) {
+            if (!empty($tmpPath) && file_exists($tmpPath)) {
+                $originalName = $files['profilingFiles']['name'][$index] ?? 'profiling_file.jpg';
+                $pathInfo = pathinfo($originalName);
+                $uniqueName = 'profiling_mbg_' . $timestamp . '_' . ($index + 1) . '_' . $pathInfo['filename'] . '.' . ($pathInfo['extension'] ?? 'jpg');
+                $dst = __DIR__ . '/template_word/' . $uniqueName;
+                if (!is_dir(__DIR__ . '/template_word')) {
+                    mkdir(__DIR__ . '/template_word', 0755, true);
+                }
+                if (copy($tmpPath, $dst)) {
+                    $foto_profiling[] = $dst;
+                }
+            }
+        }
+    }
+
+    $nama_akun = $kategori = $narasi = $link = $profiling = [];
+    $profilingDataPerReport = [];
+    foreach ($processedReports as $platform => $reports) {
+        foreach ($reports as $report) {
+            $nama_akun[] = $report['name'];
+            $kategori[] = $report['category'];
+            $narasi[] = cleanTextForWord($report['narrative']);
+            $link[] = $report['link'];
+            $profiling[] = cleanTextForWord($report['profiling'] ?? '');
+            $profilingDataPerReport[] = $report['profilingData'] ?? null;
+        }
+    }
+
+    $foto_patroli = [];
+    $timestamp = date('His_') . mt_rand(1000, 9999);
+    foreach ($screenshotPaths as $index => $originalPath) {
+        if (file_exists($originalPath)) {
+            $pathInfo = pathinfo($originalPath);
+            $uniqueName = 'mbg_lengkap_' . $timestamp . '_' . ($index + 1) . '_' . $pathInfo['filename'] . '.' . $pathInfo['extension'];
+            $newPath = __DIR__ . '/foto/' . $uniqueName;
+            if (copy($originalPath, $newPath)) {
+                $foto_patroli[] = $newPath;
+            } else {
+                $foto_patroli[] = $originalPath;
+            }
+        }
+    }
+
+    $totalReports = count($nama_akun);
+    if ($totalReports === 0) {
+        throw new Exception('Tidak ada data patroli untuk Laporan MBG Lengkap.');
+    }
+    if (count($foto_patroli) !== $totalReports) {
+        throw new Exception("Jumlah foto patroli (" . count($foto_patroli) . ") tidak sesuai dengan jumlah data patroli ({$totalReports}).");
+    }
+    if (count($foto_upaya) !== $totalReports) {
+        throw new Exception("Jumlah foto RAS/Upaya (" . count($foto_upaya) . ") tidak sesuai dengan jumlah data patroli ({$totalReports}).");
+    }
+    if (count($foto_profiling) !== $totalReports) {
+        throw new Exception("Jumlah foto profiling (" . count($foto_profiling) . ") tidak sesuai dengan jumlah data patroli ({$totalReports}).");
+    }
+
+    // Word patroli
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '7/9: Membuat file Word Laporan MBG Lengkap...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    $judulWord = strtoupper($judulMbgLengkap);
+    $templatePathLandy = __DIR__ . '/template_word/template_patroli_landy.docx';
+    $outputPathMbgLengkap = $hasilFolder . "/PATROLI SIBER DAN UPAYA KONTRA OPINI TERHADAP {$judulWord} UPDATE TANGGAL {$tanggalFormatted}.docx";
+
+    createWordFileLandy($templatePathLandy, $outputPathMbgLengkap, [
+        'nama_akun' => $nama_akun,
+        'tanggal_judul' => $tanggalFormatted,
+        'tanggal' => $tanggalFormattedFirst,
+        'kategori' => $kategori,
+        'narasi' => $narasi,
+        'link' => $link,
+        'foto_patroli' => $foto_patroli,
+        'foto_upaya' => $foto_upaya,
+        'foto_profiling' => $foto_profiling,
+        'profiling' => $profiling,
+        'profilingData' => [],
+        'profilingDataPerReport' => $profilingDataPerReport,
+    ]);
+
+    // PDF lampiran patroli
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '8/9: Membuat PDF lampiran patroli MBG...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    $templatePathHtmlLandy = __DIR__ . '/template_pdf/template_patroli.html';
+    $outputPathPdfMbgLengkap = $hasilFolder . "/LAMPIRAN {$judulWord} DI WILAYAH MERPATI - 14 PADA {$tanggalFormatted}.pdf";
+    createPdfFileLandy($templatePathHtmlLandy, $outputPathPdfMbgLengkap, $foto_patroli, $foto_upaya, $judulWord);
+
+    // PDF amplifikasi cipop MBG
+    $currentProgress += $progressStep;
+    echo json_encode(['progress' => '9/9: Membuat PDF lampiran amplifikasi Cipop MBG...', 'percent' => (int)$currentProgress]);
+    @ob_flush();
+    @flush();
+
+    $outputPathPdfCipopMbg = $hasilFolder . "/{$tanggalNamaFile} - LAPORAN AMPLIFIKASI TIM WILAYAH - 14.pdf";
+    $cipopIsScreenshot = (($post['cipopImageType'] ?? 'upload') === 'screenshot');
+    createPdfCipopMbg($outputPathPdfCipopMbg, $cipopImagePaths, $tanggalFormatted, $tanggalFormattedFirst, $tanggalNamaFile, $jumlahLinkperSheet, $cipopIsScreenshot);
+
+    echo json_encode(['progress' => 'Laporan MBG Lengkap selesai dibuat...', 'percent' => (int)($startProgress + $progressRange)]);
+    @ob_flush();
+    @flush();
+
+    if (!file_exists($outputPathMbgLengkap)) {
+        $outputPathMbgLengkap = "";
+    }
+    if (!file_exists($outputPathPdfMbgLengkap)) {
+        $outputPathPdfMbgLengkap = "";
+    }
+    if (!file_exists($outputPathPdfCipopMbg)) {
+        $outputPathPdfCipopMbg = "";
+    }
+    if (!is_file($outputPathExcelMbgLengkap)) {
+        error_log("Excel MBG Lengkap tidak ada saat validasi akhir: {$outputPathExcelMbgLengkap}");
+        $outputPathExcelMbgLengkap = "";
+    }
 }

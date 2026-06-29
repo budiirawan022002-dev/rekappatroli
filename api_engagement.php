@@ -23,6 +23,7 @@ try {
     $links = $_POST['links'] ?? [];
     $platforms = $_POST['platforms'] ?? [];
     $linkIndexes = $_POST['linkIndexes'] ?? [];
+    $komentarTotal = isset($_POST['komentarTotal']) ? (int)$_POST['komentarTotal'] : 0;
 
     // Validation
     if (empty($tanggal) || empty($judul)) {
@@ -191,7 +192,7 @@ try {
     }
 
     // Generate WhatsApp format
-    $whatsappFormat = generateWhatsAppFormat($tanggal, $judul, $reportData);
+    $whatsappFormat = generateWhatsAppFormat($tanggal, $judul, $reportData, $komentarTotal);
 
     // Generate Word document
     $templatePath = 'template_word/template_engagement.docx';
@@ -341,98 +342,38 @@ try {
 /**
  * Generate WhatsApp format text
  */
-function generateWhatsAppFormat($tanggal, $judul, $reportData) {
-    // Group accounts by link (preserve order - based on first occurrence)
-    $accountsByLink = [];
-    $linkOrder = []; // To preserve order of links
-    
-    foreach ($reportData as $data) {
-        $link = $data['link'];
-        if (!isset($accountsByLink[$link])) {
-            $accountsByLink[$link] = [];
-            $linkOrder[] = $link; // Store order
-        }
-        $accountsByLink[$link][] = $data;
-    }
-
-    // Count unique platforms
-    $platformCounts = [];
-    foreach ($reportData as $data) {
-        $platform = $data['platform'];
-        if (!isset($platformCounts[$platform])) {
-            $platformCounts[$platform] = 0;
-        }
-        $platformCounts[$platform]++;
-    }
-    
-    // Count unique accounts per platform (based on nama_akun)
-    $platformAccountCounts = [];
-    $seenAccounts = [];
-    foreach ($reportData as $data) {
-        $platform = $data['platform'];
-        $akun = $data['nama_akun'];
-        $key = $platform . '_' . $akun;
-        if (!in_array($key, $seenAccounts)) {
-            if (!isset($platformAccountCounts[$platform])) {
-                $platformAccountCounts[$platform] = 0;
-            }
-            $platformAccountCounts[$platform]++;
-            $seenAccounts[] = $key;
-        }
-    }
-    
-    $platformSummary = [];
-    foreach ($platformAccountCounts as $platform => $count) {
-        $platformSummary[] = "$count akun $platform";
-    }
-    $totalAccounts = count(array_unique(array_column($reportData, 'nama_akun')));
-    $platformText = implode(', ', $platformSummary);
-
-    // Format date
+function generateWhatsAppFormat($tanggal, $judul, $reportData, $komentarTotal = 0) {
+    // Format date and totals
     $tanggalFormatted = formatTanggalIndonesia($tanggal);
+    $totalKomentar = $komentarTotal > 0 ? $komentarTotal : count($reportData);
 
     // Build WhatsApp format
-    $output = "Kepada Yth.: Kasuari-2\n";
-    $output .= "Dari : Merpati-14\n";
+    $output = "Kepada Yth.: Kasuari-6\n\n";
     $output .= "Tembusan :\n";
     $output .= "1. Kasuari-21\n";
     $output .= "2. Kasuari-22\n";
     $output .= "3. Kasuari-23\n";
     $output .= "4. Kasuari-24\n";
     $output .= "5. Kasuari-25\n";
-    $output .= "6. Kasuari-63\n";
-    $output .= "7. Kasuari-75\n\n";
-    $output .= "Perihal : $judul\n\n";
-    $output .= "A. EXECUTIVE SUMMARY\n";
-    $output .= "Pada $tanggalFormatted, telah dilakukan upaya $judul dengan total $totalAccounts akun ($platformText).\n\n";
-    $output .= "B. HASIL ENGAGEMENT\n";
+    $output .= "6. Kasuari-63\n\n";
+    $output .= "Dari : Merpati-14\n\n";
+    $output .= "Perihal : Upaya Pembanjiran Komentar Terhadap Konten Positif terkait isu {$judul}, Periode {$tanggalFormatted}\n\n";
+    $output .= "Izin melaporkan pada {$tanggalFormatted}, Merpati-14 telah melakukan upaya pembanjiran komentar terhadap konten Positif terkait isu {$judul} dengan total {$totalKomentar} komentar. Adapun rincian kegiatan sebagai berikut:\n\n";
 
-    // Only include links that have accounts (use preserved order)
-    $linkIndex = 1;
-    foreach ($linkOrder as $link) {
-        $accounts = $accountsByLink[$link] ?? [];
-        if (count($accounts) > 0) {
-            $output .= "$linkIndex. $link\n";
-            $letterIndex = 0;
-            foreach ($accounts as $account) {
-                $letter = chr(97 + $letterIndex); // a, b, c, ...
-                $output .= "$letter. Melakukan like dan komen menggunakan akun {$account['nama_akun']} dengan narasi \"{$account['narasi']}\"\n";
-                $letterIndex++;
-            }
-            // Add newline between links (except for last one)
-            if ($linkIndex < count($linkOrder)) {
-                $output .= "\n";
-            }
-            $linkIndex++;
+    foreach ($reportData as $index => $row) {
+        $platform = $row['platform'] ?? 'Unknown';
+        if (strtolower($platform) === 'twitter/x' || strtolower($platform) === 'x') {
+            $platform = 'X/Twitter';
         }
+        $akun = $row['nama_akun'] ?? '-';
+        $link = $row['link'] ?? '-';
+        $komen = $row['narasi'] ?? '-';
+        $output .= ($index + 1) . ". Akun {$platform} {$akun} {$link} Komen: {$komen}\n\n";
     }
 
-    $output .= "\nC. CATATAN DAN KENDALA\n";
-    $output .= "Pelaksanaan engangement berjalan aman dan lancar. Jajaran Merpati - 14 terus melakukan viralisasi serta mengamplifikasi konten ke platform media sosial yang ada di wilayah Merpati - 14.\n\n";
-    $output .= "D. DOKUMENTASI TERLAMPIR\n\n";
-    $output .= "Nilai : A-1\n\n";
-    $output .= "DMMP.";
+    $output .= "Selanjutnya lampiran pelaksanaan telah terkirim pada google form.\n\n";
+    $output .= "DUMP";
 
-    return $output;
+    return trim($output);
 }
 ?>

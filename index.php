@@ -84,16 +84,30 @@ include_once('includes/header.php');
                       <label class="form-check-label" for="patroliPagi"><i class="bi bi-sunrise"></i> Patroli Pagi</label>
                     </div>
                     <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="reportType[]" id="laporanMbgLengkap" value="Laporan MBG Lengkap">
+                      <label class="form-check-label" for="laporanMbgLengkap">
+                        <i class="bi bi-file-earmark-richtext-fill text-success"></i>
+                        <span>Laporan MBG Lengkap</span>
+                      </label>
+                    </div>
+                    <div class="form-check">
                       <input class="form-check-input" type="checkbox" name="reportType[]" id="patroliBencana" value="Patroli Bencana">
                       <label class="form-check-label" for="patroliBencana">
                         <i class="bi bi-exclamation-triangle-fill text-danger"></i> 
-                        <span>Patroli Bencana</span>
+                        <span>Patroli Umum</span>
+                      </label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="reportType[]" id="laporanPpt" value="Laporan PPT">
+                      <label class="form-check-label" for="laporanPpt">
+                        <i class="bi bi-file-earmark-slides-fill text-warning"></i>
+                        <span>Laporan PPT</span>
                       </label>
                     </div>
                     <div class="form-check">
                       <input class="form-check-input" type="checkbox" name="reportType[]" id="laporanEngagement" value="Laporan ENGAGEMENT">
                       <label class="form-check-label" for="laporanEngagement">
-                        <i class="bi bi-chat-heart-fill text-info"></i> 
+                        <i class="bi bi-bar-chart-fill text-info"></i>
                         <span>Laporan ENGAGEMENT</span>
                       </label>
                     </div>
@@ -173,11 +187,52 @@ include_once('includes/header.php');
                   </div>
                 </div>
 
-                <!-- Patroli Bencana: Input Judul Laporan -->
+                <!-- Laporan MBG Lengkap: Input Judul Laporan -->
+                <div id="step3-judulMbgLengkap" class="card rounded-4 shadow-none border mb-3 d-none">
+                  <div class="card-header bg-success text-white border-bottom">
+                    <h6 class="mb-0">
+                      <i class="material-icons-outlined">title</i> Judul Laporan MBG Lengkap
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    <label for="judulMbgLengkap" class="form-label">
+                      <i class="material-icons-outlined">text_fields</i> Pilih atau Input Judul Laporan:
+                      <span class="text-danger">*</span>
+                    </label>
+                    <select name="judulMbgLengkap" id="judulMbgLengkap" class="form-select mb-2">
+                      <option value="">-- Pilih Judul atau Input Manual di Bawah --</option>
+                      <option value="Temuan Akun Medsos Narasi Negatif dan Dukungan Amplifikasi Program MBG">Temuan Akun Medsos Narasi Negatif dan Dukungan Amplifikasi Program MBG</option>
+                      <option value="Temuan Akun Medsos Narasi Negatif MBG">Temuan Akun Medsos Narasi Negatif MBG</option>
+                      <option value="Monitoring Akun Media Sosial Provokasi MBG">Monitoring Akun Media Sosial Provokasi MBG</option>
+                      <option value="Patroli Siber Media Sosial MBG">Patroli Siber Media Sosial MBG</option>
+                      <option value="custom">✏️ Input Judul Manual</option>
+                    </select>
+
+                    <div id="judulMbgLengkapCustomInput" class="d-none">
+                      <input type="text" name="judulMbgLengkapCustom" id="judulMbgLengkapCustom" class="form-control"
+                        placeholder="Ketik judul laporan Anda di sini...">
+                    </div>
+
+                    <small class="form-text" style="color: #495057; font-weight: 400;">
+                      <i class="material-icons-outlined" style="font-size: 14px;">info</i>
+                      Judul akan muncul di: <strong>*Perihal : Laporan {judul} di Wilayah Prov. Jambi Update {tanggal}*</strong>
+                    </small>
+
+                    <div class="mt-3">
+                      <label for="catatanMbgLengkap" class="form-label">
+                        <i class="material-icons-outlined">notes</i> Catatan (Section D) — Opsional:
+                      </label>
+                      <textarea name="catatanMbgLengkap" id="catatanMbgLengkap" class="form-control" rows="4"
+                        placeholder="Kosongkan untuk menggunakan catatan default otomatis..."></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Patroli Umum (value tetap Patroli Bencana untuk API): Input Judul Laporan -->
                 <div id="step3-judulBencana" class="card rounded-4 shadow-none border mb-3 d-none">
                   <div class="card-header bg-danger text-white border-bottom">
                     <h6 class="mb-0">
-                      <i class="material-icons-outlined">title</i> Judul Laporan Patroli Bencana
+                      <i class="material-icons-outlined">title</i> Judul Laporan Patroli Umum
                     </h6>
                   </div>
                   <div class="card-body">
@@ -202,7 +257,7 @@ include_once('includes/header.php');
                     
                     <small class="form-text" style="color: #495057; font-weight: 400;">
                       <i class="material-icons-outlined" style="font-size: 14px;">info</i>
-                      Judul akan muncul di: <strong>*Perihal : Patroli Siber Konten Provokatif Mendiskreditkan Pemerintah di Wilayah Merpati-14 (Update {tanggal} Pukul {waktu} WIB)*</strong>
+                      Judul akan muncul di: <strong>*Perihal : Patroli Siber Konten Provokatif Mendiskreditkan Pemerintah di Wilayah Merpati-14 (Update {tanggal})*</strong>
                     </small>
                   </div>
                 </div>
@@ -216,7 +271,7 @@ include_once('includes/header.php');
                     <label for="patrolReport" class="form-label">
                       <i class="material-icons-outlined">edit_note</i> Input Patrol Report:
                       <span class="text-danger">*</span>
-                      <small style="color: #495057; font-weight: 400;">(Required for Laporan KBD, Patroli Landy, Patroli Pagi, Patroli Bencana)</small>
+                      <small style="color: #495057; font-weight: 400;">(Required for Laporan KBD, Patroli Landy, Patroli Pagi, Patroli Umum, Laporan MBG Lengkap)</small>
                     </label>
                     
                     <!-- Info/Help untuk format Patroli Landy -->
@@ -508,13 +563,41 @@ https://instagram.com/..."></textarea>
                   </div>
                 </div>
 
-                <!-- Laporan KBD, Patroli Landy, Patroli Pagi, Patroli Bencana: Screenshot Patroli -->
+                <!-- Laporan PPT -->
+                <div id="step4-laporanPpt" class="d-none">
+                  <div class="card shadow-none border mb-3">
+                    <div class="card-header bg-warning text-dark border-bottom">
+                      <h6 class="mb-0">Laporan PPT - Upload Gambar</h6>
+                    </div>
+                    <div class="card-body">
+                      <label for="pptImageFiles" class="form-label">
+                        <i class="material-icons-outlined">slideshow</i> Upload Gambar PPT (1-6):
+                      </label>
+                      <input type="file" name="pptImageFiles[]" id="pptImageFiles" accept="image/*" multiple class="form-control" onchange="validateFileCount(this, 6); previewFiles(this, 'pptFilesPreview')">
+                      <div id="pptFilesPreview" class="file-preview mt-2"></div>
+                      <div class="alert alert-info mt-3 mb-2 py-2 px-3">
+                        <strong>Urutan gambar wajib sesuai:</strong><br>
+                        1. Facebook<br>
+                        2. Instagram<br>
+                        3. X<br>
+                        4. Tiktok<br>
+                        5. Youtube<br>
+                        6. SnackVideo
+                      </div>
+                      <small class="form-text" style="color: #495057; font-weight: 400;">
+                        Sistem akan menempatkan gambar ke template PPT dan mengganti tanggal otomatis.
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Laporan KBD, Patroli Landy, Patroli Pagi, Patroli Umum: Screenshot Patroli -->
                 <div id="step4-screenshotPatrolUmum" class="card shadow-none border mb-3">
                   <div class="card-header bg-light border-bottom">
                     <h6 class="mb-0">
                       Screenshot Patroli
                       <span class="text-danger">*</span>
-                      <small style="color: #495057; font-weight: 400;">(Required for Laporan KBD, Patroli Landy, Patroli Pagi, Patroli Bencana)</small>
+                      <small style="color: #495057; font-weight: 400;">(Required for Laporan KBD, Patroli Landy, Patroli Pagi, Patroli Umum, Laporan MBG Lengkap)</small>
                     </h6>
                   </div>
                   <div class="card-body">
@@ -582,7 +665,7 @@ https://instagram.com/..."></textarea>
                   <!-- Screenshot RAS for Landy Report -->
                   <div id="landyRasScreenshotSection" class="card shadow-none border mb-3">
                     <div class="card-header bg-light border-bottom">
-                      <h6 class="mb-0">Upload Tangkapan Layar RAS (Khusus Landy/Bencana)</h6>
+                      <h6 class="mb-0">Upload Tangkapan Layar RAS (Khusus Landy/Patroli Umum)</h6>
                     </div>
                     <div class="card-body">
                       <label for="rasFiles" class="form-label"><i class="material-icons-outlined">file_upload</i> Upload Screenshot RAS (Maks. 8 gambar):</label>
@@ -591,10 +674,10 @@ https://instagram.com/..."></textarea>
                     </div>
                   </div>
 
-                  <!-- Screenshot Profiling for Landy/Bencana Report -->
+                  <!-- Screenshot Profiling for Landy/Patroli Umum Report -->
                   <div id="landyProfilingScreenshotSection" class="card shadow-none border mb-3">
                     <div class="card-header bg-light border-bottom">
-                      <h6 class="mb-0">Upload Foto Profiling (Khusus Landy/Bencana)</h6>
+                      <h6 class="mb-0">Upload Foto Profiling (Khusus Landy/Patroli Umum)</h6>
                     </div>
                     <div class="card-body">
                       <label for="profilingFiles" class="form-label"><i class="material-icons-outlined">file_upload</i> Upload Foto Profiling (Maks. 8 gambar):</label>
@@ -871,14 +954,36 @@ https://instagram.com/..."></textarea>
             </div>
           </div>
 
-          <!-- Patroli Bencana Results -->
+          <!-- Laporan MBG Lengkap Results -->
+          <div class="col-12 col-md-4 mb-3">
+            <div class="card rounded-4 w-100 h-100 shadow-lg border-0 result-card-premium">
+              <div class="card-header bg-success text-white d-flex align-items-center" style="border-radius: 16px 16px 0 0;">
+                <div class="result-icon-wrapper me-2" style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                  <i class="bi bi-file-earmark-richtext-fill" style="font-size: 20px;"></i>
+                </div>
+                <h6 class="mb-0 fw-bold">Hasil Laporan MBG Lengkap</h6>
+              </div>
+              <div class="card-body p-4">
+                <div class="text-center py-4 result-placeholder">
+                  <div class="result-icon-large mb-3" style="width: 60px; height: 60px; background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(32, 201, 151, 0.1) 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+                    <i class="bi bi-file-earmark-richtext" style="font-size: 32px; color: #28a745;"></i>
+                  </div>
+                  <p class="mt-2 text-muted fw-medium">Hasil laporan akan ditampilkan di sini.</p>
+                </div>
+                <div class="result-content" id="laporanMbgLengkapResult">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Patroli Umum Results -->
           <div class="col-12 col-md-4 mb-3">
             <div class="card rounded-4 w-100 h-100 shadow-lg border-0 result-card-premium">
               <div class="card-header bg-danger text-white d-flex align-items-center" style="border-radius: 16px 16px 0 0;">
                 <div class="result-icon-wrapper me-2" style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
                   <i class="bi bi-exclamation-triangle-fill" style="font-size: 20px;"></i>
                 </div>
-                <h6 class="mb-0 fw-bold">Hasil Patroli Bencana</h6>
+                <h6 class="mb-0 fw-bold">Hasil Patroli Umum</h6>
               </div>
               <div class="card-body p-4">
                 <div class="text-center py-4 result-placeholder">
@@ -888,6 +993,29 @@ https://instagram.com/..."></textarea>
                   <p class="mt-2 text-muted fw-medium">Hasil laporan akan ditampilkan di sini.</p>
                 </div>
                 <div class="result-content" id="laporanBencanaResult">
+                  <!-- Result content will be filled by JavaScript -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Laporan PPT Results -->
+          <div class="col-12 col-md-4 mb-3">
+            <div class="card rounded-4 w-100 h-100 shadow-lg border-0 result-card-premium">
+              <div class="card-header bg-warning text-dark d-flex align-items-center" style="border-radius: 16px 16px 0 0;">
+                <div class="result-icon-wrapper me-2" style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.3); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                  <i class="bi bi-file-earmark-slides-fill" style="font-size: 20px;"></i>
+                </div>
+                <h6 class="mb-0 fw-bold">Hasil Laporan PPT</h6>
+              </div>
+              <div class="card-body p-4">
+                <div class="text-center py-4 result-placeholder">
+                  <div class="result-icon-large mb-3" style="width: 60px; height: 60px; background: rgba(255, 193, 7, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+                    <i class="bi bi-file-earmark-slides" style="font-size: 32px; color: #d39e00;"></i>
+                  </div>
+                  <p class="mt-2 text-muted fw-medium">Hasil laporan PPT akan ditampilkan di sini.</p>
+                </div>
+                <div class="result-content" id="laporanPptResult">
                   <!-- Result content will be filled by JavaScript -->
                 </div>
               </div>
@@ -936,6 +1064,29 @@ window.addEventListener('load', function() {
         });
     }
     
+    // Handle dropdown judul MBG Lengkap
+    const judulMbgLengkapSelect = document.getElementById('judulMbgLengkap');
+    const judulMbgLengkapCustomInput = document.getElementById('judulMbgLengkapCustomInput');
+    const judulMbgLengkapCustom = document.getElementById('judulMbgLengkapCustom');
+
+    if (judulMbgLengkapSelect && judulMbgLengkapCustomInput) {
+        judulMbgLengkapSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                judulMbgLengkapCustomInput.classList.remove('d-none');
+                if (judulMbgLengkapCustom) {
+                    judulMbgLengkapCustom.setAttribute('required', 'required');
+                    judulMbgLengkapCustom.focus();
+                }
+            } else {
+                judulMbgLengkapCustomInput.classList.add('d-none');
+                if (judulMbgLengkapCustom) {
+                    judulMbgLengkapCustom.removeAttribute('required');
+                    judulMbgLengkapCustom.value = '';
+                }
+            }
+        });
+    }
+
     // Handle dropdown judul Bencana - show custom input jika pilih "custom"
     const judulBencanaSelect = document.getElementById('judulBencana');
     const judulBencanaCustomInput = document.getElementById('judulBencanaCustomInput');
@@ -1102,7 +1253,26 @@ window.addEventListener('load', function() {
                 }
             }
             
-            // Validate judul Bencana jika Patroli Bencana dipilih
+            // Validate judul MBG Lengkap jika dipilih
+            if (selectedReports.includes('Laporan MBG Lengkap')) {
+                const judulMbgSelect = document.getElementById('judulMbgLengkap');
+                const judulMbgCustom = document.getElementById('judulMbgLengkapCustom');
+                const judulMbgValue = judulMbgSelect ? judulMbgSelect.value : '';
+                const customJudulMbg = judulMbgCustom ? judulMbgCustom.value.trim() : '';
+
+                if (!judulMbgValue || (judulMbgValue === 'custom' && !customJudulMbg)) {
+                    e.preventDefault();
+                    alert('⚠️ Judul Laporan MBG Lengkap wajib diisi!\n\nSilakan pilih judul dari dropdown atau input judul manual.');
+                    if (judulMbgValue === 'custom' && judulMbgCustom) {
+                        judulMbgCustom.focus();
+                    } else if (judulMbgSelect) {
+                        judulMbgSelect.focus();
+                    }
+                    return false;
+                }
+            }
+
+            // Validate judul Patroli Umum (reportType Patroli Bencana) jika dipilih
             if (selectedReports.includes('Patroli Bencana')) {
                 const judulBencanaValue = judulBencanaSelect ? judulBencanaSelect.value : '';
                 const customJudulBencanaValue = judulBencanaCustom ? judulBencanaCustom.value.trim() : '';
@@ -1110,7 +1280,7 @@ window.addEventListener('load', function() {
                 // Jika dropdown tidak dipilih atau pilih custom tapi custom input kosong
                 if (!judulBencanaValue || (judulBencanaValue === 'custom' && !customJudulBencanaValue)) {
                     e.preventDefault();
-                    alert('⚠️ Judul Laporan Patroli Bencana wajib diisi!\n\nSilakan pilih judul dari dropdown atau input judul manual.');
+                    alert('⚠️ Judul Laporan Patroli Umum wajib diisi!\n\nSilakan pilih judul dari dropdown atau input judul manual.');
                     
                     // Focus ke field yang bermasalah
                     if (judulBencanaValue === 'custom') {

@@ -1259,21 +1259,15 @@ function handlePatroliLandy(
     
     $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText}. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
 
-    // Check if this is "Sore" based on jumlah laporan
-    // Jika 1 laporan = MBG, jika 2 atau lebih = Sore
-    $isSore = $totalPatroliCount >= 2;
-    
-    if ($isSore) {
-        // Format untuk Patroli Sore
-        $narasiPatroliLandy = <<<EOD
-*Kepada Yth.: Kasuari-6*
+    $narasiPatroliLandy = <<<EOD
+*Kepada Yth: Rajawali*
 
 *Dari: Merpati-14*
 
 *Tembusan : Yth.*
-*1. Kasuari-9*
-*2. Kasuari-63*
-*3. Kasuari-75*
+*1. Elang*
+*2. Kasuari-6*
+*3. Kasuari-9*
 
 *Perihal : Laporan {$judulLandy} di Wilayah Prov. Jambi Update {$tanggalFormattedFirst}*
 
@@ -1284,7 +1278,7 @@ function handlePatroliLandy(
 *B. KEGIATAN PATROLI SIBER*
 
 {$isiPatroliLandy}
-*C.UPAYA*
+*B.UPAYA*
 
 1.Melakukan pemantauan terhadap akun yang menyebarkan berita atau isu yang menyudutkan pemerintahan.
 
@@ -1294,39 +1288,6 @@ function handlePatroliLandy(
 
 *DUMP. TTD: Merpati - 14*
 EOD;
-    } else {
-        // Format untuk Patroli MBG (yang pertama)
-        $narasiPatroliLandy = <<<EOD
-*Kepada Yth:*
-*1. Rajawali*
-*2. Elang*
-
-*Dari: Merpati-14*
-
-*Tembusan : Yth.*
-*1. Kasuari-6*
-*2. Kasuari-9*
-
-*Perihal : Laporan {$judulLandy} di Wilayah Prov. Jambi Update {$tanggalFormattedFirst}*
-
-*A. EXECUTIVE SUMMARY*
-
-{$executiveSummary}
-
-*B. KEGIATAN PATROLI SIBER*
-
-{$isiPatroliLandy}
-*C.UPAYA*
-
-1.Melakukan pemantauan terhadap akun yang menyebarkan berita atau isu yang menyudutkan pemerintahan.
-
-2.Melakukan pemetaan terhadap postingan ataupun berita tendensius dan hoax serta penyebarnya yang tersebar di dunia maya.
-
-3.Melakukan kontra dan report terhadap isu sensitif yang efeknya diperkirakan cukup besar dan nyata baik dengan tulisan maupun dengan meme yang bersifat menarik.
-
-*DUMP. TTD: Merpati - 14*
-EOD;
-    }
 
     // Step 2: Process RAS/upaya files
     $currentProgress += $progressStep;

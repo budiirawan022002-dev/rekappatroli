@@ -348,7 +348,7 @@ afiliasi: </textarea>
                 </div>
               </div>
 
-              <!-- Patroli Bencana Guide -->
+              <!-- Patroli Umum Guide -->
               <div class="accordion-item border-bottom">
                 <h2 class="accordion-header">
                   <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bencanaGuideCollapse" aria-expanded="false" aria-controls="bencanaGuideCollapse" style="background: #fff0f0; border: none; padding: 1.25rem 1.5rem;">
@@ -357,8 +357,8 @@ afiliasi: </textarea>
                         <i class="bi bi-exclamation-triangle-fill text-white" style="font-size: 20px;"></i>
                       </div>
                       <div class="flex-grow-1">
-                        <h6 class="mb-0 fw-bold text-dark">Patroli Bencana</h6>
-                        <small class="text-muted">Laporan patroli bencana dengan format khusus</small>
+                        <h6 class="mb-0 fw-bold text-dark">Patroli Umum</h6>
+                        <small class="text-muted">Laporan patroli umum dengan format khusus</small>
                       </div>
                       <i class="bi bi-chevron-down ms-2 text-danger"></i>
                     </div>
@@ -370,7 +370,7 @@ afiliasi: </textarea>
                       <div class="step-item mb-3 d-flex align-items-start">
                         <div class="step-number me-3" style="width: 32px; height: 32px; background: #dc3545; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(220, 53, 69, 0.4);">1</div>
                         <div class="flex-grow-1">
-                          <p class="mb-0 fw-medium">Pilih jenis laporan <span class="badge bg-danger">"Patroli Bencana"</span> pada langkah pertama</p>
+                          <p class="mb-0 fw-medium">Pilih jenis laporan <span class="badge bg-danger">"Patroli Umum"</span> pada langkah pertama</p>
                         </div>
                       </div>
                       <div class="step-item mb-3 d-flex align-items-start">
@@ -439,7 +439,7 @@ afiliasi: (Tidak ditemukan)</textarea>
                         </div>
                       </div>
                       <div class="alert alert-warning border-0 shadow-sm mb-0" style="background: #fff3cd; border-left: 4px solid #ffc107 !important;">
-                        <i class="bi bi-info-circle-fill me-2"></i><strong>Penting:</strong> Format laporan WhatsApp menggunakan header khusus dengan tembusan ke Kasuari-21 hingga Kasuari-75
+                        <i class="bi bi-info-circle-fill me-2"></i><strong>Penting:</strong> Format laporan WhatsApp menggunakan header khusus dengan tembusan ke Kasuari-21 hingga Kasuari-63
                       </div>
                     </div>
                   </div>

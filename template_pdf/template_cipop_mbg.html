@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>LAPORAN AMPLIFIKASI TIM WILAYAH - 14</title>
+    <style>
+        @page { size: A4 landscape; margin: 0; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #111; }
+
+        .page {
+            width: 297mm;
+            height: 210mm;
+            page-break-after: always;
+            page-break-inside: avoid;
+            position: relative;
+            overflow: hidden;
+            background: #fff;
+        }
+        .page:last-child { page-break-after: auto; }
+
+        .corner-tl {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 105px;
+            height: 38px;
+            background: #0057b8;
+            border-bottom-right-radius: 34px;
+        }
+        .corner-br {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 185px;
+            height: 38px;
+            background: #0057b8;
+            border-top-left-radius: 34px;
+        }
+        .corner-tr {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 105px;
+            height: 38px;
+            background: #0057b8;
+            border-bottom-left-radius: 34px;
+        }
+        .page-badge {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            margin-top: -14px;
+            width: 28px;
+            height: 28px;
+            background: #111;
+            border-radius: 14px;
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 28px;
+        }
+
+        .title-blue {
+            color: #0057b8;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin: 0;
+            padding: 0;
+        }
+        .title-black {
+            color: #111;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ---- KONTEN ---- */
+        .page-konten { padding: 14mm 16mm 10mm 16mm; }
+        .page-konten .title-blue { font-size: 28px; letter-spacing: 1px; margin-bottom: 6mm; }
+        .konten-grid { width: 100%; border-collapse: separate; border-spacing: 6mm 0; }
+        .konten-grid td { width: 50%; vertical-align: top; padding: 0 2mm; }
+        .photo-box {
+            width: 100%;
+            height: 72mm;
+            overflow: hidden;
+            background: #f7f7f7;
+            border: 1px solid #d8d8d8;
+            text-align: center;
+            vertical-align: middle;
+            padding: 2mm;
+        }
+        .photo-box table { width: 100%; height: 68mm; border-collapse: collapse; }
+        .photo-box td { text-align: center; vertical-align: middle; }
+        .photo-box img { display: block; margin: 0 auto; max-width: 100%; max-height: 68mm; }
+        .caption-box {
+            margin-top: 3mm;
+            background: #fff;
+            border-left: 3px solid #f39c12;
+            padding: 2mm 3mm;
+        }
+        .caption-name { font-size: 11px; font-weight: bold; margin: 0 0 1mm 0; }
+        .caption-role { font-size: 10px; margin: 0; color: #333; }
+
+        /* ---- LAPORAN ---- */
+        .page-laporan {
+            position: relative;
+            padding: 0;
+            width: 297mm;
+            height: 210mm;
+            page-break-inside: avoid;
+            overflow: hidden;
+        }
+        .laporan-head {
+            position: absolute;
+            top: 11mm;
+            left: 14mm;
+            right: 18mm;
+        }
+        .page-laporan .title-blue {
+            font-size: 26px;
+            line-height: 1.05;
+            text-transform: uppercase;
+        }
+        .page-laporan .title-black {
+            font-size: 11px;
+            margin-top: 1.5mm;
+            line-height: 1.25;
+            text-transform: uppercase;
+        }
+        .laporan-footer-panel {
+            position: absolute;
+            bottom: 9mm;
+            left: 10mm;
+            right: 10mm;
+            border: 1px solid #b8b8b8;
+            background: #fafafa;
+            padding: 2.5mm;
+            page-break-inside: avoid;
+        }
+        .laporan-footer-inner {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        .laporan-footer-inner td { vertical-align: top; }
+        .laporan-col-text {
+            width: 36%;
+            padding: 1.5mm 3mm 1.5mm 1.5mm;
+            font-size: 10px;
+            line-height: 1.45;
+            text-align: justify;
+            vertical-align: top;
+        }
+        .laporan-col-center {
+            width: 24%;
+            padding: 1.5mm;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .laporan-col-right {
+            width: 40%;
+            padding: 1.5mm;
+            vertical-align: top;
+        }
+        .laporan-center-box {
+            width: 100%;
+            height: 42mm;
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid #d8d8d8;
+            padding: 1mm;
+            text-align: center;
+        }
+        .laporan-center-box table { width: 100%; height: 38mm; border-collapse: collapse; }
+        .laporan-center-box td { text-align: center; vertical-align: middle; }
+        .laporan-right-box {
+            width: 100%;
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid #d8d8d8;
+            padding: 1mm;
+            text-align: center;
+            margin-bottom: 1.5mm;
+        }
+        .laporan-right-box.top { height: 28mm; }
+        .laporan-right-box.top table { height: 24mm; }
+        .laporan-right-box.bottom { height: 28mm; margin-bottom: 0; }
+        .laporan-right-box.bottom table { height: 24mm; }
+        .laporan-right-box table { width: 100%; border-collapse: collapse; }
+        .laporan-right-box td { text-align: center; vertical-align: middle; }
+        .laporan-text-only {
+            padding: 2mm 3mm;
+            font-size: 10px;
+            line-height: 1.45;
+            text-align: justify;
+        }
+
+        /* ---- SCREENSHOOT ---- */
+        .page-screenshot { padding: 12mm 14mm 8mm 14mm; }
+        .page-screenshot .title-blue { font-size: 28px; margin-bottom: 5mm; }
+        .screenshot-grid { width: 100%; border-collapse: separate; border-spacing: 4mm 0; }
+        .screenshot-grid td { width: 33.33%; vertical-align: top; text-align: center; padding: 0 1mm; }
+        .screenshot-box {
+            width: 100%;
+            height: 108mm;
+            overflow: hidden;
+            background: #f7f7f7;
+            border: 1px solid #d8d8d8;
+            padding: 2mm;
+            text-align: center;
+        }
+        .screenshot-box table { width: 100%; height: 102mm; border-collapse: collapse; }
+        .screenshot-box td { text-align: center; vertical-align: middle; }
+        .screenshot-box img { display: block; margin: 0 auto; max-width: 100%; max-height: 102mm; }
+
+        /* ---- TERIMAKASIH ---- */
+        .page-thanks {
+            position: relative;
+            text-align: center;
+        }
+        .thanks-bg {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            opacity: 0.18;
+        }
+        .thanks-content {
+            position: relative;
+            z-index: 2;
+            padding: 28mm 20mm 0 20mm;
+        }
+        .thanks-title {
+            font-size: 42px;
+            font-weight: bold;
+            color: #111;
+            margin: 0 0 12mm 0;
+            letter-spacing: 1px;
+        }
+        .thanks-quote {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #0057b8;
+            font-weight: bold;
+            max-width: 230mm;
+            margin: 0 auto;
+        }
+        .thanks-dash {
+            position: absolute;
+            top: 10mm;
+            left: 50%;
+            margin-left: -18mm;
+            width: 36mm;
+            height: 8px;
+            background: #0057b8;
+            border-radius: 8px;
+        }
+        .placeholder-box {
+            width: 100%;
+            background: #ececec;
+            color: #999;
+            font-size: 10px;
+            text-align: center;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+{{content_pages}}
+</body>
+</html>

@@ -21,16 +21,16 @@ include_once('includes/header.php');
     </div>
     <!--end breadcrumb-->
 
-    <div class="row g-3 g-md-4">
-      <div class="col-12">
+    <div class="row g-3 g-md-4 justify-content-center">
+      <div class="col-12 col-xl-10">
         <div class="card rounded-4 shadow-lg border-0" style="background: #ffffff; border: 1px solid #cfe2ff !important;">
           <div class="card-header bg-primary text-white">
             <h5 class="mb-0"><i class="bi bi-chat-heart-fill me-2"></i>Form Laporan Engagement</h5>
           </div>
-          <div class="card-body p-3 p-md-4">
+          <div class="card-body p-3">
             <form id="engagementForm" enctype="multipart/form-data">
               <!-- Tanggal dan Judul -->
-              <div class="mb-4">
+              <div class="mb-3">
                 <div class="row g-3">
                   <div class="col-12 col-md-6">
                     <label for="tanggal" class="form-label"><i class="bi bi-calendar-event"></i> Tanggal Laporan <span class="text-danger">*</span></label>
@@ -43,24 +43,30 @@ include_once('includes/header.php');
                 </div>
               </div>
 
-              <!-- Input Links -->
-              <div class="mb-4">
-                <label for="linksInput" class="form-label"><i class="bi bi-link-45deg"></i> Link Konten (satu per baris) <span class="text-danger">*</span></label>
-                <textarea class="form-control" id="linksInput" name="linksInput" rows="5" placeholder="Masukkan link konten, satu per baris&#10;Contoh:&#10;https://www.instagram.com/p/xxx/&#10;https://vt.tiktok.com/xxx/" required></textarea>
-                <small class="text-muted">Masukkan link konten yang akan di-engagement, satu per baris</small>
+              <!-- Input Data Engagement -->
+              <div class="mb-3">
+                <label for="linksInput" class="form-label"><i class="bi bi-link-45deg"></i> Input Data Engagement (format keyword) <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="linksInput" name="linksInput" rows="7" placeholder="Keyword: kualitas layanan MBG&#10;@beritasatset https://www.tiktok.com/@beritasatset/video/7626622458581224725&#10;@POSITIFITI https://x.com/POSITIFITI/status/2042109002147135525&#10;&#10;Keyword: jaga stabilitas rupiah&#10;@infonusa https://www.tiktok.com/@infonusa/video/7626622539762027797&#10;@amanbangetkok https://x.com/amanbangetkok/status/2042109049542734083" required></textarea>
+                <small class="text-muted">Gunakan format: <code>Keyword:</code> lalu daftar <code>@akun link</code></small>
+              </div>
+
+              <div class="mb-3">
+                <label for="komentarInput" class="form-label"><i class="bi bi-chat-left-text"></i> Input Komentar (format: jumlah | isi komentar | akun) <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="komentarInput" name="komentarInput" rows="6" placeholder="Keyword: kualitas layanan MBG&#10;5 | indonesia jaya | a&#10;&#10;Keyword: jaga stabilitas rupiah&#10;3 | indonesia jaya | a" required></textarea>
+                <small class="text-muted">Angka komentar dihitung per <code>Keyword</code>. Jika tanpa keyword, sistem pakai mode umum (baris biasa).</small>
               </div>
 
               <!-- Dynamic Forms per Link -->
               <div id="linkFormsContainer"></div>
 
               <!-- Preview -->
-              <div class="mb-4">
+              <div class="mb-3">
                 <div class="card shadow-none border">
                   <div class="card-header bg-light">
                     <h6 class="mb-0"><i class="bi bi-eye"></i> Preview</h6>
                   </div>
                   <div class="card-body">
-                    <textarea id="previewOutput" class="form-control result-textarea" rows="10" readonly></textarea>
+                    <textarea id="previewOutput" class="form-control result-textarea" rows="8" readonly></textarea>
                   </div>
                 </div>
               </div>
@@ -112,6 +118,12 @@ include_once('includes/header.php');
   color: #0d6efd;
   margin-bottom: 10px;
 }
+
+@media (min-width: 1600px) {
+  .main-content .col-xl-10 {
+    max-width: 1200px;
+  }
+}
 </style>
 
 <script>
@@ -125,7 +137,7 @@ function detectPlatform(url) {
   if (url.includes('instagram.com')) return 'Instagram';
   if (url.includes('facebook.com')) return 'Facebook';
   if (url.includes('tiktok.com')) return 'TikTok';
-  if (url.includes('twitter.com') || url.includes('x.com')) return 'Twitter/X';
+  if (url.includes('twitter.com') || url.includes('x.com')) return 'X/Twitter';
   if (url.includes('youtube.com')) return 'YouTube';
   return 'Unknown';
 }
@@ -140,7 +152,159 @@ function isValidUrl(string) {
   }
 }
 
-// Generate forms untuk setiap link
+function parseEngagementInput(rawInput) {
+  const lines = (rawInput || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const parsedItems = [];
+  let currentKeyword = '';
+
+  lines.forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line) return;
+
+    const keywordMatch = line.match(/^keyword\s*:\s*(.+)$/i);
+    if (keywordMatch) {
+      currentKeyword = keywordMatch[1].trim();
+      return;
+    }
+
+    const accountMatch = line.match(/^(@[^\s]+)\s+(https?:\/\/[^\s]+)$/i);
+    if (accountMatch) {
+      const akun = accountMatch[1].trim();
+      const url = accountMatch[2].trim();
+      parsedItems.push({
+        akun,
+        url,
+        keyword: currentKeyword || 'tanpa keyword',
+        keywordKey: normalizeKeyword(currentKeyword || 'tanpa keyword'),
+        platform: detectPlatform(url)
+      });
+    }
+  });
+
+  return parsedItems;
+}
+
+function normalizeKeyword(keyword) {
+  return String(keyword || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseKomentarInput(rawInput) {
+  const lines = (rawInput || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const entries = [];
+  const byKeyword = {};
+  let total = 0;
+  let currentKeyword = '';
+
+  lines.forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line) return;
+
+    const keywordMatch = line.match(/^keyword\s*:\s*(.+)$/i);
+    if (keywordMatch) {
+      currentKeyword = keywordMatch[1].trim();
+      return;
+    }
+
+    const parts = line.split('|').map(p => p.trim());
+    if (parts.length < 2) return;
+
+    // Support 2 formats:
+    // 1) qty | komentar | akun
+    // 2) komentar | akun | totalTema
+    let qty = 0;
+    let text = '';
+    let akun = '';
+    let isTotalTema = false;
+
+    const firstNum = parseInt(parts[0], 10);
+    const lastNum = parseInt(parts[parts.length - 1], 10);
+
+    if (!Number.isNaN(firstNum)) {
+      qty = firstNum;
+      text = parts[1] || '';
+      akun = parts[2] || '';
+    } else if (!Number.isNaN(lastNum)) {
+      qty = lastNum;
+      text = parts[0] || '';
+      akun = parts[1] || '';
+      isTotalTema = true;
+    } else {
+      // Fallback: keep safe behavior
+      qty = 1;
+      text = parts[0] || '';
+      akun = parts[1] || '';
+    }
+
+    const safeQty = qty > 0 ? qty : 0;
+    total += safeQty;
+    const parsed = { qty: safeQty, text, akun, isTotalTema };
+    entries.push(parsed);
+
+    if (currentKeyword) {
+      const key = normalizeKeyword(currentKeyword);
+      if (!byKeyword[key]) {
+        byKeyword[key] = { qty: 0, text: parsed.text, akun: parsed.akun, isTotalTema: parsed.isTotalTema };
+      }
+      byKeyword[key].qty += parsed.qty;
+      if (parsed.text) byKeyword[key].text = parsed.text;
+      if (parsed.akun) byKeyword[key].akun = parsed.akun;
+      if (parsed.isTotalTema) byKeyword[key].isTotalTema = true;
+    }
+  });
+
+  return { entries, byKeyword, total };
+}
+
+function getKomentarQtyForItem(item, itemIndex, allItems, komentarData) {
+  const key = item.keywordKey || normalizeKeyword(item.keyword || '');
+  const hasKeywordMap = Boolean(komentarData.byKeyword[key]);
+  const mapped = komentarData.byKeyword[key] || komentarData.entries[itemIndex % komentarData.entries.length];
+  if (!mapped) {
+    const totalGlobal = Number(komentarData.total || 0);
+    if (totalGlobal > 0) {
+      const countAll = allItems.length || 1;
+      const baseAll = Math.floor(totalGlobal / countAll);
+      const remAll = totalGlobal % countAll;
+      return baseAll + (itemIndex < remAll ? 1 : 0);
+    }
+    return 1;
+  }
+
+  let qty = (mapped.qty && mapped.qty > 0) ? mapped.qty : 1;
+
+  // For keyword-mapped data, qty is treated as TOTAL per tema and distributed.
+  // This supports both:
+  // - "komentar | akun | 30"
+  // - repeated lines like "1 | komentar | akun" under the same keyword.
+  if (hasKeywordMap || mapped.isTotalTema) {
+    const itemsInKeyword = allItems.filter(x => (x.keywordKey || normalizeKeyword(x.keyword || '')) === key);
+    const countInKeyword = itemsInKeyword.length || 1;
+
+    const base = Math.floor(qty / countInKeyword);
+    const remainder = qty % countInKeyword;
+
+    const currentPos = itemsInKeyword.findIndex(x => x.url === item.url && x.akun === item.akun);
+    const safePos = currentPos >= 0 ? currentPos : 0;
+    return base + (safePos < remainder ? 1 : 0);
+  }
+
+  // Fallback when keyword mapping is not available:
+  // use global total and distribute across all links.
+  const totalGlobal = Number(komentarData.total || 0);
+  if (totalGlobal > 0) {
+    const countAll = allItems.length || 1;
+    const baseAll = Math.floor(totalGlobal / countAll);
+    const remAll = totalGlobal % countAll;
+    return baseAll + (itemIndex < remAll ? 1 : 0);
+  }
+
+  return qty;
+}
+
+// Generate ringkasan dari input keyword
 function generateForms() {
   const container = document.getElementById('linkFormsContainer');
   const linksInput = document.getElementById('linksInput').value.trim();
@@ -152,60 +316,29 @@ function generateForms() {
     return;
   }
 
-  const newLinks = linksInput.split('\n').map(l => l.trim()).filter(l => l && isValidUrl(l));
-  
-  // Hanya update jika links berubah
-  if (JSON.stringify(newLinks) === JSON.stringify(links.map(l => l.url))) {
-    return;
-  }
-
-  links = newLinks.map((url, index) => ({
-    url: url,
-    platform: detectPlatform(url),
+  const parsedItems = parseEngagementInput(linksInput);
+  links = parsedItems.map((item, index) => ({
+    url: item.url,
+    platform: item.platform,
     index: index
   }));
 
-  container.innerHTML = links.map(link => `
-    <div class="link-form-section" data-link-index="${link.index}">
-      <h6><i class="bi bi-link-45deg"></i> Link ${link.index + 1}: ${link.platform}</h6>
-      <div class="mb-2">
-        <small class="text-muted d-block mb-2">${link.url}</small>
-      </div>
-      <div class="mb-3">
-        <label class="form-label"><i class="bi bi-person"></i> Nama Akun dan Narasi (satu per baris, format: @akun | narasi)</label>
-        <textarea class="form-control" id="accounts_link_${link.index}" name="accounts_link_${link.index}" rows="4" placeholder="@akun1 | Narasi komentar 1&#10;@akun2 | Narasi komentar 2"></textarea>
-      </div>
-      <div class="mb-3">
-        <label class="form-label"><i class="bi bi-image"></i> Upload Evidence (Foto bukti engagement)</label>
-        <input type="file" class="form-control" id="evidence_link_${link.index}" name="evidence_link_${link.index}[]" accept="image/*" multiple>
-        <div id="evidence_preview_${link.index}" class="mt-2"></div>
-      </div>
-    </div>
-  `).join('');
+  if (parsedItems.length === 0) {
+    container.innerHTML = `<div class="alert alert-warning py-2 px-3">Format belum valid. Gunakan <b>Keyword:</b> lalu baris <b>@akun link</b>.</div>`;
+    updatePreview();
+    return;
+  }
 
-  // Attach event listeners
-  links.forEach(link => {
-    const accountsInput = document.getElementById(`accounts_link_${link.index}`);
-    const evidenceInput = document.getElementById(`evidence_link_${link.index}`);
-    
-    if (accountsInput) {
-      accountsInput.addEventListener('input', () => {
-        if (!isLoadingData) {
-          saveFormData();
-          updatePreview();
-        }
-      });
-    }
-    
-    if (evidenceInput) {
-      evidenceInput.addEventListener('change', (e) => {
-        showEvidencePreview(link.index, e.target.files);
-        if (!isLoadingData) {
-          saveFormData();
-        }
-      });
-    }
-  });
+  container.innerHTML = `
+    <div class="alert alert-info py-2 px-3 mb-2">
+      Total data terbaca: <b>${parsedItems.length}</b> akun/link.
+    </div>
+    ${parsedItems.map((item, idx) => `
+      <div class="link-form-section py-2 px-3 mb-2">
+        <small><b>${idx + 1}.</b> ${item.platform} ${item.akun}<br>${item.url}<br><b>Keyword:</b> ${item.keyword}</small>
+      </div>
+    `).join('')}
+  `;
 
   loadFormData();
   updatePreview();
@@ -240,48 +373,46 @@ function updatePreview() {
     return;
   }
 
-  // Collect data
-  const data = [];
-  links.forEach(link => {
-    const accountsInput = document.getElementById(`accounts_link_${link.index}`);
-    if (accountsInput && accountsInput.value.trim()) {
-      const accounts = accountsInput.value.trim().split('\n').filter(a => a.trim());
-      data.push({
-        link: link.url,
-        platform: link.platform,
-        accounts: accounts
-      });
-    }
-  });
+  const data = parseEngagementInput(document.getElementById('linksInput').value.trim());
+  const komentar = parseKomentarInput(document.getElementById('komentarInput').value.trim());
 
   if (data.length === 0) {
-    previewOutput.value = 'Masukkan link dan data akun terlebih dahulu';
+    previewOutput.value = 'Masukkan data dengan format Keyword + @akun link terlebih dahulu';
+    return;
+  }
+  if (komentar.entries.length === 0) {
+    previewOutput.value = 'Masukkan komentar dengan format: jumlah | isi komentar | akun';
     return;
   }
 
+  const tanggalFormatted = formatTanggalIndonesia(tanggal);
+  const totalKomentar = komentar.total;
+
   // Format preview
-  let preview = `Kepada Yth.: Kasuari-2\n`;
-  preview += `Dari : Merpati-14\n`;
+  let preview = `Kepada Yth.: Kasuari-6\n\n`;
   preview += `Tembusan :\n`;
-  preview += `1. Kasuari-21\n2. Kasuari-22\n3. Kasuari-23\n4. Kasuari-24\n5. Kasuari-25\n6. Kasuari-63\n7. Kasuari-75\n\n`;
-  preview += `Perihal : ${judul}\n\n`;
-  preview += `A. EXECUTIVE SUMMARY\n`;
-  preview += `Pada ${tanggal}, telah dilakukan upaya ${judul} dengan total X akun.\n\n`;
-  preview += `B. HASIL ENGAGEMENT\n`;
+  preview += `1. Kasuari-21\n2. Kasuari-22\n3. Kasuari-23\n4. Kasuari-24\n5. Kasuari-25\n6. Kasuari-63\n\n`;
+  preview += `Dari : Merpati-14\n\n`;
+  preview += `Perihal : Upaya Pembanjiran Komentar Terhadap Konten Positif terkait isu ${judul}, Periode ${tanggalFormatted}\n\n`;
+  preview += `Izin melaporkan pada ${tanggalFormatted}, Merpati-14 telah melakukan upaya pembanjiran komentar terhadap konten Positif terkait isu ${judul} dengan total ${totalKomentar} komentar. Adapun rincian kegiatan sebagai berikut:\n\n`;
 
   data.forEach((item, idx) => {
-    preview += `${idx + 1}. ${item.link}\n`;
-    item.accounts.forEach((account, accIdx) => {
-      const parts = account.split('|').map(p => p.trim());
-      const akun = parts[0] || '';
-      const narasi = parts[1] || '';
-      const letter = String.fromCharCode(97 + accIdx); // a, b, c, ...
-      preview += `${letter}. Melakukan like dan komen menggunakan akun ${akun} dengan narasi "${narasi}"\n`;
-    });
-    if (idx < data.length - 1) preview += '\n';
+    const jumlahKomentar = getKomentarQtyForItem(item, idx, data, komentar);
+    preview += `${idx + 1}. Akun ${item.platform} ${item.akun} ${item.url} Komen: ${jumlahKomentar} komentar\n\n`;
   });
 
-  previewOutput.value = preview;
+  preview += `Selanjutnya lampiran pelaksanaan telah terkirim pada google form.\n\nDUMP`;
+  previewOutput.value = preview.trim();
+}
+
+function formatTanggalIndonesia(tanggal) {
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  const d = new Date(tanggal);
+  if (Number.isNaN(d.getTime())) return tanggal;
+  return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 // Save form data to localStorage
@@ -292,6 +423,7 @@ function saveFormData() {
     tanggal: document.getElementById('tanggal').value,
     judul: document.getElementById('judul').value,
     linksInput: document.getElementById('linksInput').value,
+    komentarInput: document.getElementById('komentarInput').value,
     links: []
   };
 
@@ -319,6 +451,7 @@ function loadFormData() {
       if (data.tanggal) document.getElementById('tanggal').value = data.tanggal;
       if (data.judul) document.getElementById('judul').value = data.judul;
       if (data.linksInput) document.getElementById('linksInput').value = data.linksInput;
+      if (data.komentarInput) document.getElementById('komentarInput').value = data.komentarInput;
       
       // Generate forms first
       generateForms();
@@ -364,50 +497,33 @@ document.getElementById('engagementForm').addEventListener('submit', async funct
   const tanggal = document.getElementById('tanggal').value;
   const judul = document.getElementById('judul').value;
   const linksInput = document.getElementById('linksInput').value.trim();
+  const komentarInput = document.getElementById('komentarInput').value.trim();
   
-  if (!tanggal || !judul || !linksInput) {
+  if (!tanggal || !judul || !linksInput || !komentarInput) {
     alert('Mohon lengkapi semua field yang wajib diisi!');
     return;
   }
 
   // Validate links
-  const linksArray = linksInput.split('\n').map(l => l.trim()).filter(l => l);
-  const validLinks = linksArray.filter(l => isValidUrl(l));
-  
-  if (validLinks.length === 0) {
-    alert('Minimal harus ada satu link yang valid!');
+  const parsedItems = parseEngagementInput(linksInput);
+  if (parsedItems.length === 0) {
+    alert('Format input tidak valid. Gunakan format: Keyword lalu @akun link');
+    return;
+  }
+  const komentarParsed = parseKomentarInput(komentarInput);
+  if (komentarParsed.entries.length === 0) {
+    alert('Format komentar tidak valid. Gunakan: jumlah | isi komentar | akun');
     return;
   }
 
-  // Collect all data
-  const links = [];
-  const platforms = [];
-  const namaAkun = [];
-  const narasi = [];
-  const linkIndexes = [];
-  
-  validLinks.forEach((url, linkIdx) => {
-    const platform = detectPlatform(url);
-    const accountsInput = document.getElementById(`accounts_link_${linkIdx}`);
-    
-    if (accountsInput && accountsInput.value.trim()) {
-      const accounts = accountsInput.value.trim().split('\n').filter(a => a.trim());
-      
-      accounts.forEach(account => {
-        const parts = account.split('|').map(p => p.trim());
-        const akun = parts[0] || '';
-        const narasiText = parts[1] || '';
-        
-        if (akun) {
-          links.push(url);
-          platforms.push(platform);
-          namaAkun.push(akun);
-          narasi.push(narasiText);
-          linkIndexes.push(linkIdx);
-        }
-      });
-    }
+  const links = parsedItems.map(item => item.url);
+  const platforms = parsedItems.map(item => item.platform);
+  const namaAkun = parsedItems.map(item => item.akun);
+  const narasi = parsedItems.map((item, idx) => {
+    const jumlahKomentar = getKomentarQtyForItem(item, idx, parsedItems, komentarParsed);
+    return `${jumlahKomentar} komentar`;
   });
+  const linkIndexes = parsedItems.map((_, idx) => idx);
 
   if (namaAkun.length === 0) {
     alert('Minimal harus ada satu akun dengan narasi!');
@@ -418,22 +534,13 @@ document.getElementById('engagementForm').addEventListener('submit', async funct
   formData.append('action', 'generate_engagement_report');
   formData.append('tanggal', tanggal);
   formData.append('judul', judul);
+  formData.append('komentarTotal', String(komentarParsed.total));
   
   namaAkun.forEach(akun => formData.append('namaAkun[]', akun));
   narasi.forEach(nar => formData.append('narasi[]', nar));
   links.forEach(link => formData.append('links[]', link));
   platforms.forEach(plat => formData.append('platforms[]', plat));
   linkIndexes.forEach(idx => formData.append('linkIndexes[]', idx));
-
-  // Add evidence files
-  validLinks.forEach((url, linkIdx) => {
-    const evidenceInput = document.getElementById(`evidence_link_${linkIdx}`);
-    if (evidenceInput && evidenceInput.files.length > 0) {
-      Array.from(evidenceInput.files).forEach((file, fileIdx) => {
-        formData.append(`evidence_link_${linkIdx}[]`, file);
-      });
-    }
-  });
 
   // Show loading
   const submitBtn = this.querySelector('button[type="submit"]');
@@ -524,6 +631,12 @@ document.getElementById('linksInput').addEventListener('input', () => {
   if (!isLoadingData) {
     saveFormData();
     generateForms();
+  }
+});
+document.getElementById('komentarInput').addEventListener('input', () => {
+  if (!isLoadingData) {
+    saveFormData();
+    updatePreview();
   }
 });
 

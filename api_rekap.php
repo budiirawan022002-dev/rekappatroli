@@ -36,23 +36,32 @@ try {
     mb_http_output('UTF-8');
 
     // Clean up hasil directory before processing
-    cleanupHasilDirectory();
+    cleanupHasilDirectory(__DIR__ . '/hasil');
 
     $narrative = "";
     $outputPathWordPatroli = $outputPathWordGeneral = $outputPathPdf = "";
     $outputPathLandy = $outputPathPdfLandy = $outputPathPagi = $outputPathPdfPagi = "";
     $outputPathBencana = $outputPathPdfBencana = "";
     $outputPathKhusus = $outputPathWordPatroliKhusus = $outputPathPdfKhusus = "";
+    $outputPathPpt = "";
     $narasiPatroliLandy = $narasiPatroliPagi = $narasiPatroliBencana = $narasiKhusus = $fullNarasiKhusus = "";
+    $narasiMbgLengkap = "";
+    $narasiMbgLengkapAmplifikasi = "";
+    $outputPathMbgLengkap = $outputPathPdfMbgLengkap = $outputPathPdfCipopMbg = $outputPathExcelMbgLengkap = "";
+    $outputFilenameExcelMbgLengkap = "";
+
+    $reportTypes = $_POST['reportType'] ?? [];
+    $reportTypesNeedPatrol = ['Laporan KBD', 'Patroli Landy', 'Patroli Pagi', 'Patroli Bencana', 'Laporan MBG Lengkap'];
+    $needsPatrolProcessing = count(array_intersect($reportTypes, $reportTypesNeedPatrol)) > 0;
 
     // --- Proses Patroli ---
     $rawReport = $_POST['patrolReport'] ?? '';
     
     // Check if Patroli Landy or Patroli Bencana is selected to determine field count
-    $reportTypes = $_POST['reportType'] ?? [];
     $isPatroliLandy = in_array('Patroli Landy', $reportTypes);
     $isPatroliBencana = in_array('Patroli Bencana', $reportTypes);
-    $fieldCount = ($isPatroliLandy || $isPatroliBencana) ? 9 : 4;
+    $isMbgLengkap = in_array('Laporan MBG Lengkap', $reportTypes);
+    $fieldCount = ($isPatroliLandy || $isPatroliBencana || $isMbgLengkap) ? 9 : 4;
     
     // Get judul Landy (dari dropdown atau custom input)
     $judulLandy = '';
@@ -70,64 +79,91 @@ try {
         
         error_log("Judul Landy: " . $judulLandy);
     }
+
+    // Get judul MBG Lengkap (dari dropdown atau custom input)
+    $judulMbgLengkap = '';
+    if ($isMbgLengkap) {
+        $judulMbgDropdown = $_POST['judulMbgLengkap'] ?? '';
+        $judulMbgCustom = $_POST['judulMbgLengkapCustom'] ?? '';
+        $judulMbgLengkap = ($judulMbgDropdown === 'custom') ? trim($judulMbgCustom) : $judulMbgDropdown;
+        if (empty($judulMbgLengkap)) {
+            $judulMbgLengkap = 'Temuan Akun Medsos Narasi Negatif dan Dukungan Amplifikasi Program MBG';
+        }
+        error_log("Judul MBG Lengkap: " . $judulMbgLengkap);
+    }
     
     error_log("Patrol processing - Is Patroli Landy: " . ($isPatroliLandy ? 'YES' : 'NO'));
     error_log("Patrol processing - Field count: " . $fieldCount);
     error_log("Patrol processing - Raw report length: " . strlen($rawReport));
     
-    // Check if multi-line profiling format is used (for Landy or Bencana)
-    // Support both old format (profiling:\nNama:) and new format (profiling:\nNik: or profiling:\nKK:)
-    $hasMultiLineProfiling = false;
-    if (($isPatroliLandy || $isPatroliBencana) && (
-        preg_match('/profiling:\s*\n\s*(Nama|Nik|KK|Jenis\s+kelamin|Lahir|Tanggal\s+Lahir|Pekerjaan|Provinsi|Kabupaten|Kecamatan|Kelurahan|Alamat\s+Lengkap)\s*:/is', $rawReport) ||
-        preg_match('/profiling:\s*\n\s*[A-Za-z\s]+:\s*/is', $rawReport)
-    )) {
-        $hasMultiLineProfiling = true;
-        error_log("✅ DETECTED MULTI-LINE PROFILING FORMAT - Using parseLandyMultiLineProfiling()");
-        $hasilPatroli = parseLandyMultiLineProfiling($rawReport);
-        $groupedReports = $hasilPatroli['groupedReports'];
-        $processedReports = $hasilPatroli['processedReports'];
-        
-        // Convert profiling data to text format for display
-        foreach ($processedReports as $platform => &$reports) {
-            foreach ($reports as &$report) {
-                if (isset($report['profiling']) && is_array($report['profiling'])) {
-                    $profilingText = '';
-                    if (isset($report['profiling_text'])) {
-                        $profilingText = $report['profiling_text'];
-                    } else {
-                        $profilingParts = [];
-                        if (isset($report['profiling']['nama'])) $profilingParts[] = "Nama: " . $report['profiling']['nama'];
-                        if (isset($report['profiling']['jenis_kelamin'])) $profilingParts[] = "Jenis Kelamin: " . $report['profiling']['jenis_kelamin'];
-                        if (isset($report['profiling']['gol_darah'])) $profilingParts[] = "Golongan Darah: " . $report['profiling']['gol_darah'];
-                        if (isset($report['profiling']['status_nikah'])) $profilingParts[] = "Status Nikah: " . $report['profiling']['status_nikah'];
-                        if (isset($report['profiling']['agama'])) $profilingParts[] = "Agama: " . $report['profiling']['agama'];
-                        if (isset($report['profiling']['tempat_lahir'])) $profilingParts[] = "Lahir: " . $report['profiling']['tempat_lahir'];
-                        if (isset($report['profiling']['umur'])) $profilingParts[] = "Umur: " . $report['profiling']['umur'];
-                        if (isset($report['profiling']['tgl_lahir'])) $profilingParts[] = "Tanggal Lahir: " . $report['profiling']['tgl_lahir'];
-                        if (isset($report['profiling']['pekerjaan'])) $profilingParts[] = "Pekerjaan: " . $report['profiling']['pekerjaan'];
-                        if (isset($report['profiling']['provinsi'])) $profilingParts[] = "Provinsi: " . $report['profiling']['provinsi'];
-                        if (isset($report['profiling']['kabupaten'])) $profilingParts[] = "Kabupaten: " . $report['profiling']['kabupaten'];
-                        if (isset($report['profiling']['kecamatan'])) $profilingParts[] = "Kecamatan: " . $report['profiling']['kecamatan'];
-                        if (isset($report['profiling']['kelurahan'])) $profilingParts[] = "Kelurahan: " . $report['profiling']['kelurahan'];
-                        if (isset($report['profiling']['kode_pos'])) $profilingParts[] = "Kode Pos: " . $report['profiling']['kode_pos'];
-                        if (isset($report['profiling']['rt_rw'])) $profilingParts[] = "RT/RW: " . $report['profiling']['rt_rw'];
-                        if (isset($report['profiling']['alamat'])) $profilingParts[] = "Alamat Lengkap: " . $report['profiling']['alamat'];
-                        $profilingText = implode("\n", $profilingParts);
+    $groupedReports = [
+        'FACEBOOK' => [],
+        'INSTAGRAM' => [],
+        'X' => [],
+        'TIKTOK' => [],
+        'SNACKVIDEO' => [],
+        'YOUTUBE' => []
+    ];
+    $processedReports = $groupedReports;
+    $platformCounts = [];
+    $totalPatroli = 0;
+    $narasiPatroli = "";
+
+    if ($needsPatrolProcessing) {
+        // Check if multi-line profiling format is used (for Landy or Bencana)
+        // Support both old format (profiling:\nNama:) and new format (profiling:\nNik: or profiling:\nKK:)
+        $hasMultiLineProfiling = false;
+        if (($isPatroliLandy || $isPatroliBencana || $isMbgLengkap) && (
+            preg_match('/profiling:\s*\n\s*(Nama|Nik|KK|Jenis\s+kelamin|Lahir|Tanggal\s+Lahir|Pekerjaan|Provinsi|Kabupaten|Kecamatan|Kelurahan|Alamat\s+Lengkap)\s*:/is', $rawReport) ||
+            preg_match('/profiling:\s*\n\s*[A-Za-z\s]+:\s*/is', $rawReport)
+        )) {
+            $hasMultiLineProfiling = true;
+            error_log("✅ DETECTED MULTI-LINE PROFILING FORMAT - Using parseLandyMultiLineProfiling()");
+            $hasilPatroli = parseLandyMultiLineProfiling($rawReport);
+            $groupedReports = $hasilPatroli['groupedReports'];
+            $processedReports = $hasilPatroli['processedReports'];
+            
+            // Convert profiling data to text format for display
+            foreach ($processedReports as $platform => &$reports) {
+                foreach ($reports as &$report) {
+                    if (isset($report['profiling']) && is_array($report['profiling'])) {
+                        $profilingText = '';
+                        if (isset($report['profiling_text'])) {
+                            $profilingText = $report['profiling_text'];
+                        } else {
+                            $profilingParts = [];
+                            if (isset($report['profiling']['nama'])) $profilingParts[] = "Nama: " . $report['profiling']['nama'];
+                            if (isset($report['profiling']['jenis_kelamin'])) $profilingParts[] = "Jenis Kelamin: " . $report['profiling']['jenis_kelamin'];
+                            if (isset($report['profiling']['gol_darah'])) $profilingParts[] = "Golongan Darah: " . $report['profiling']['gol_darah'];
+                            if (isset($report['profiling']['status_nikah'])) $profilingParts[] = "Status Nikah: " . $report['profiling']['status_nikah'];
+                            if (isset($report['profiling']['agama'])) $profilingParts[] = "Agama: " . $report['profiling']['agama'];
+                            if (isset($report['profiling']['tempat_lahir'])) $profilingParts[] = "Lahir: " . $report['profiling']['tempat_lahir'];
+                            if (isset($report['profiling']['umur'])) $profilingParts[] = "Umur: " . $report['profiling']['umur'];
+                            if (isset($report['profiling']['tgl_lahir'])) $profilingParts[] = "Tanggal Lahir: " . $report['profiling']['tgl_lahir'];
+                            if (isset($report['profiling']['pekerjaan'])) $profilingParts[] = "Pekerjaan: " . $report['profiling']['pekerjaan'];
+                            if (isset($report['profiling']['provinsi'])) $profilingParts[] = "Provinsi: " . $report['profiling']['provinsi'];
+                            if (isset($report['profiling']['kabupaten'])) $profilingParts[] = "Kabupaten: " . $report['profiling']['kabupaten'];
+                            if (isset($report['profiling']['kecamatan'])) $profilingParts[] = "Kecamatan: " . $report['profiling']['kecamatan'];
+                            if (isset($report['profiling']['kelurahan'])) $profilingParts[] = "Kelurahan: " . $report['profiling']['kelurahan'];
+                            if (isset($report['profiling']['kode_pos'])) $profilingParts[] = "Kode Pos: " . $report['profiling']['kode_pos'];
+                            if (isset($report['profiling']['rt_rw'])) $profilingParts[] = "RT/RW: " . $report['profiling']['rt_rw'];
+                            if (isset($report['profiling']['alamat'])) $profilingParts[] = "Alamat Lengkap: " . $report['profiling']['alamat'];
+                            $profilingText = implode("\n", $profilingParts);
+                        }
+                        $report['profiling'] = $profilingText;
                     }
-                    $report['profiling'] = $profilingText;
                 }
             }
+            unset($reports, $report);
+        } else {
+            $hasilPatroli = prosesPatrolReport($rawReport, 'patroli', $fieldCount, ($isPatroliLandy || $isMbgLengkap));
+            $groupedReports = $hasilPatroli['groupedReports'];
+            $processedReports = $hasilPatroli['processedReports'];
         }
-        unset($reports, $report);
-    } else {
-        $hasilPatroli = prosesPatrolReport($rawReport, 'patroli', $fieldCount, $isPatroliLandy);
-        $groupedReports = $hasilPatroli['groupedReports'];
-        $processedReports = $hasilPatroli['processedReports'];
-    }
 
-    // Narasi Patroli & platform count
-    $narasiPatroli = buildNarasiPatroli($groupedReports, $platformCounts, $totalPatroli);
+        // Narasi Patroli & platform count
+        $narasiPatroli = buildNarasiPatroli($groupedReports, $platformCounts, $totalPatroli);
+    }
 
     $sheetsToRead = ['FACEBOOK', 'INSTAGRAM', 'TWITTER', 'TIKTOK', 'SNACKVIDEO', 'YOUTUBE'];
     $tanggalInput = $_POST['tanggal'] ?? date('Y-m-d');
@@ -142,7 +178,7 @@ try {
     $screenshotPaths = [];
     $needsPatrolScreenshots = false;
     foreach ($_POST['reportType'] as $reportType) {
-        if (in_array($reportType, ['Laporan KBD', 'Patroli Landy', 'Patroli Pagi', 'Patroli Bencana'])) {
+        if (in_array($reportType, ['Laporan KBD', 'Patroli Landy', 'Patroli Pagi', 'Patroli Bencana', 'Laporan MBG Lengkap'])) {
             $needsPatrolScreenshots = true;
             break;
         }
@@ -183,6 +219,14 @@ try {
         $progressRanges['Khusus'] = ['start' => $currentPercent, 'range' => 30];
         $currentPercent += 30;
     }
+    if (in_array('Laporan PPT', $selectedReports)) {
+        $progressRanges['PPT'] = ['start' => $currentPercent, 'range' => 20];
+        $currentPercent += 20;
+    }
+    if (in_array('Laporan MBG Lengkap', $selectedReports)) {
+        $progressRanges['MbgLengkap'] = ['start' => $currentPercent, 'range' => 35];
+        $currentPercent += 35;
+    }
 
     // --- Laporan KBD ---
     if (in_array('Laporan KBD', $_POST['reportType'])) {
@@ -198,6 +242,39 @@ try {
         } catch (Exception $e) {
             error_log("Error creating KBD report: " . $e->getMessage());
             throw new Exception("Gagal membuat laporan KBD: " . $e->getMessage());
+        }
+    }
+
+    // --- Laporan MBG Lengkap ---
+    if (in_array('Laporan MBG Lengkap', $_POST['reportType'])) {
+        $startProgress = isset($progressRanges['MbgLengkap']) ? $progressRanges['MbgLengkap']['start'] : 15;
+        $progressRange = isset($progressRanges['MbgLengkap']) ? $progressRanges['MbgLengkap']['range'] : 35;
+        echo json_encode(['progress' => 'Membuat Laporan MBG Lengkap...', 'percent' => $startProgress]); @ob_flush(); @flush();
+        try {
+            handleLaporanMbgLengkap(
+                $processedReports, $tanggalFormatted, $tanggalFormattedFirst, $tanggalNamaFile, $hariFormatted,
+                __DIR__ . '/hasil', $_POST, $_FILES, $sheetsToRead, $screenshotPaths,
+                $narasiMbgLengkap, $outputPathMbgLengkap, $outputPathPdfMbgLengkap, $outputPathPdfCipopMbg, $outputPathExcelMbgLengkap,
+                $narasiMbgLengkapAmplifikasi,
+                $judulMbgLengkap, $startProgress, $progressRange
+            );
+
+            if ($outputPathExcelMbgLengkap === '' || !is_file($outputPathExcelMbgLengkap)) {
+                $excelCandidate = __DIR__ . '/hasil/' . $tanggalNamaFile . ' - LAPORAN AMPLIFIKASI MBG MERPATI-14.xlsx';
+                if (!is_file($excelCandidate)) {
+                    $excelCandidate = __DIR__ . '/hasil/' . $tanggalNamaFile . ' - LAPORAN AMPLIFIKASI LINK MERPATI-14.xlsx';
+                }
+                if (is_file($excelCandidate)) {
+                    $outputPathExcelMbgLengkap = $excelCandidate;
+                    error_log("Excel MBG Lengkap: path dipulihkan dari fallback: {$excelCandidate}");
+                }
+            }
+            if ($outputPathExcelMbgLengkap !== '' && is_file($outputPathExcelMbgLengkap)) {
+                $outputFilenameExcelMbgLengkap = basename(str_replace('\\', '/', $outputPathExcelMbgLengkap));
+            }
+        } catch (Exception $e) {
+            error_log("Error creating Laporan MBG Lengkap: " . $e->getMessage());
+            throw new Exception("Gagal membuat Laporan MBG Lengkap: " . $e->getMessage());
         }
     }
 
@@ -408,10 +485,7 @@ try {
             $platformBreakdownText = implode('', $platformBreakdown);
         }
         
-        $currentTime = date('H:i');
-        $waktuFormatted = $currentTime . ' WIB';
-        
-        $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText} yakni terkait Penanganan Bencana Alam di Medan, Sumatera Barat dan Aceh, Isu Deforestasi, serta Polemik penanganan bencana. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
+        $executiveSummary = "Pada {$tanggalFormattedFirst}, di wilayah Merpati-14 termonitor sebanyak {$totalPatroliCount} konten propaganda dan provokasi di media sosial {$platformBreakdownText} yakni terkait Konten Provokatif Mendiskreditkan Pemerintah, Isu Deforestasi, serta Polemik penanganan bencana. Berdasarkan temuan tersebut Merpati-14 telah melakukan upaya RAS dan kontra propaganda dalam rangka mengeliminasi propaganda negatif.";
 
         $narasiPatroliBencana = <<<EOD
 *Kepada Yth.: Kasuari-6*
@@ -426,7 +500,7 @@ try {
 *5. Kasuari-25*
 *6. Kasuari-63*
 
-*Perihal : {$judulBencana} di Wilayah Merpati-14 (Update {$tanggalFormattedFirst} Pukul {$waktuFormatted})*
+*Perihal : {$judulBencana} di Wilayah Merpati-14 (Update {$tanggalFormattedFirst})*
 
 *A. EXECUTIVE SUMMARY*
 
@@ -434,7 +508,7 @@ try {
 
 *B. HASIL PATROLI SIBER*
 
-{$isiPatroliBencana}*C.UPAYA*
+{$isiPatroliBencana}*B.UPAYA*
 
 1. Melakukan upaya RAS dan melakukan Kontra narasi melalui kolom komentar.
 
@@ -442,7 +516,7 @@ try {
 
 3. Melakukan profiling terhadap pemilik akun, afiliasi akun, dst.
 
-*D. DOKUMENTASI LAPORAN (MATRIK AKUN DAN PROFILLING).*
+*C. DOKUMENTASI LAPORAN (MATRIK AKUN DAN PROFILLING).*
 
 Nilai : Ambon-1
 DUMP.
@@ -558,6 +632,25 @@ EOD;
             throw new Exception("Gagal membuat laporan khusus: " . $e->getMessage());
         }
     }
+
+    // --- Laporan PPT ---
+    if (in_array('Laporan PPT', $_POST['reportType'])) {
+        $startProgress = isset($progressRanges['PPT']) ? $progressRanges['PPT']['start'] : 85;
+        echo json_encode(['progress' => 'Membuat laporan PPT...', 'percent' => $startProgress]); @ob_flush(); @flush();
+
+        if (!isset($_FILES['pptImageFiles']) || empty($_FILES['pptImageFiles']['name'][0])) {
+            throw new Exception('Upload minimal 1 gambar untuk Laporan PPT.');
+        }
+
+        $safeDate = date('dmY', strtotime($tanggalInput));
+        $outputPathPpt = __DIR__ . '/hasil/LAPORAN PPT AMPLIFIKASI KONTEN ' . $safeDate . '.pptx';
+        createPptReportFromTemplate(
+            __DIR__ . '/template_ppt/template.pptx',
+            $outputPathPpt,
+            $tanggalInput,
+            $_FILES['pptImageFiles']
+        );
+    }
     
     // Final cleanup - delete all temporary images after processing is complete
     echo json_encode(['progress' => 'Membersihkan file sementara...', 'percent' => 95]); @ob_flush(); @flush();
@@ -593,6 +686,13 @@ EOD;
     error_log("  - outputPathWordKhusus: " . var_export($outputPathKhusus, true));
     error_log("  - outputPathPdfKhusus: " . var_export($outputPathPdfKhusus, true));
     error_log("  - outputPathWordPatroliKhusus: " . var_export($outputPathWordPatroliKhusus, true));
+    error_log("  - narasiMbgLengkap length: " . strlen($narasiMbgLengkap));
+    error_log("  - narasiMbgLengkapAmplifikasi length: " . strlen($narasiMbgLengkapAmplifikasi));
+    error_log("  - outputPathMbgLengkap: " . var_export($outputPathMbgLengkap, true));
+    error_log("  - outputPathPdfMbgLengkap: " . var_export($outputPathPdfMbgLengkap, true));
+    error_log("  - outputPathPdfCipopMbg: " . var_export($outputPathPdfCipopMbg, true));
+    error_log("  - outputPathExcelMbgLengkap: " . var_export($outputPathExcelMbgLengkap, true));
+    error_log("  - outputFilenameExcelMbgLengkap: " . var_export($outputFilenameExcelMbgLengkap, true));
 
     echo json_encode([
         'success' => true,
@@ -613,7 +713,15 @@ EOD;
         'outputPathWordPatroliKhusus' => $outputPathWordPatroliKhusus,
         'narasiPatroliPagi' => $narasiPatroliPagi,
         'narrativeKhusus' => $narasiKhusus,
-        'fullNarrativeKhusus' => $fullNarasiKhusus
+        'fullNarrativeKhusus' => $fullNarasiKhusus,
+        'outputPathPpt' => $outputPathPpt,
+        'narasiMbgLengkap' => $narasiMbgLengkap,
+        'narasiMbgLengkapAmplifikasi' => $narasiMbgLengkapAmplifikasi,
+        'outputPathMbgLengkap' => $outputPathMbgLengkap,
+        'outputPathPdfMbgLengkap' => $outputPathPdfMbgLengkap,
+        'outputPathPdfCipopMbg' => $outputPathPdfCipopMbg,
+        'outputPathExcelMbgLengkap' => $outputPathExcelMbgLengkap,
+        'outputFilenameExcelMbgLengkap' => $outputFilenameExcelMbgLengkap
     ]);
 } catch (\Exception $e) {
     // Log error and attempt to clean up even if processing failed

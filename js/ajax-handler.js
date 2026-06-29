@@ -3,6 +3,14 @@
  * Berisi fungsi-fungsi untuk menangani pengiriman form dan permintaan AJAX
  */
 
+function getHasilFileName(filePath) {
+    if (!filePath) {
+        return '';
+    }
+    const parts = String(filePath).split(/[/\\]/);
+    return parts[parts.length - 1] || '';
+}
+
 // Add global error handler for debugging
 window.addEventListener('error', function(e) {
     console.error('JavaScript Runtime Error:', {
@@ -859,7 +867,70 @@ document.addEventListener('DOMContentLoaded', function() {
                             landyResultContent.classList.add('d-none');
                             landyResultContent.innerHTML = '';
                         }
-                    }                    // Tampilkan hasil laporan Patroli Pagi
+                    }
+
+                    // Tampilkan hasil Laporan MBG Lengkap
+                    const mbgLengkapResultContent = document.getElementById('laporanMbgLengkapResult');
+                    if (mbgLengkapResultContent) {
+                        const parentCard = mbgLengkapResultContent.closest('.card');
+                        const placeholder = parentCard ? parentCard.querySelector('.result-placeholder') : null;
+
+                        if (selected.includes('Laporan MBG Lengkap')) {
+                            if (placeholder) placeholder.classList.add('d-none');
+                            mbgLengkapResultContent.classList.remove('d-none');
+
+                            const mbgExcelFile = data.outputFilenameExcelMbgLengkap || getHasilFileName(data.outputPathExcelMbgLengkap);
+                            if (data && (data.outputPathMbgLengkap || data.outputPathPdfMbgLengkap || data.outputPathPdfCipopMbg || data.outputPathExcelMbgLengkap || mbgExcelFile || data.narasiMbgLengkap || data.narasiMbgLengkapAmplifikasi)) {
+                                mbgLengkapResultContent.innerHTML = `
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <label class="form-label fw-medium mb-0">Narasi Laporan MBG Lengkap (Patroli + Amplifikasi)</label>
+                                            <button type="button" class="btn btn-sm btn-outline-success copy-btn" data-target="mbg-lengkap-narrative">
+                                                <i class="material-icons-outlined" style="font-size: 16px;">content_copy</i> Copy
+                                            </button>
+                                        </div>
+                                        <textarea id="mbg-lengkap-narrative" class="form-control result-textarea" rows="20">${data.narasiMbgLengkap || ''}</textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <label class="form-label fw-medium mb-0">Narasi Amplifikasi MBG (Kasatgas MBG)</label>
+                                            <button type="button" class="btn btn-sm btn-outline-primary copy-btn" data-target="mbg-lengkap-amplifikasi-narrative">
+                                                <i class="material-icons-outlined" style="font-size: 16px;">content_copy</i> Copy
+                                            </button>
+                                        </div>
+                                        <textarea id="mbg-lengkap-amplifikasi-narrative" class="form-control result-textarea" rows="22">${data.narasiMbgLengkapAmplifikasi || ''}</textarea>
+                                    </div>
+                                    <div>
+                                        <label class="form-label fw-medium">Download Hasil</label>
+                                        <div class="d-flex flex-column gap-2">
+                                            ${data.outputPathMbgLengkap ? `<a href="hasil/${encodeURIComponent(getHasilFileName(data.outputPathMbgLengkap))}" class="btn btn-sm btn-outline-success d-flex align-items-center justify-content-center gap-2" target="_blank">
+                                                <i class="material-icons-outlined">description</i> Patroli (Word)
+                                            </a>` : ''}
+                                            ${data.outputPathPdfCipopMbg ? `<a href="hasil/${encodeURIComponent(getHasilFileName(data.outputPathPdfCipopMbg))}" class="btn btn-sm btn-outline-primary d-flex align-items-center justify-content-center gap-2" target="_blank">
+                                                <i class="material-icons-outlined">picture_as_pdf</i> Lampiran Amplifikasi Cipop (PDF)
+                                            </a>` : ''}
+                                            ${mbgExcelFile ? `<a href="hasil/${encodeURIComponent(mbgExcelFile)}" class="btn btn-sm btn-outline-success d-flex align-items-center justify-content-center gap-2" target="_blank">
+                                                <i class="material-icons-outlined">table_chart</i> Lampiran Link Amplifikasi (Excel)
+                                            </a>` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                mbgLengkapResultContent.innerHTML = `
+                                    <div class="alert alert-danger">
+                                        <i class="material-icons-outlined">error</i>
+                                        Pemrosesan Laporan MBG Lengkap gagal atau data tidak tersedia.
+                                    </div>
+                                `;
+                            }
+                        } else {
+                            if (placeholder) placeholder.classList.remove('d-none');
+                            mbgLengkapResultContent.classList.add('d-none');
+                            mbgLengkapResultContent.innerHTML = '';
+                        }
+                    }
+
+                    // Tampilkan hasil laporan Patroli Pagi
                     const pagiResultContent = document.getElementById('laporanPagiResult');
                     if (pagiResultContent) {
                         // Find the parent card and placeholder
@@ -958,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
 
-                    // Tampilkan hasil laporan Patroli Bencana
+                    // Tampilkan hasil laporan Patroli Umum
                     const bencanaResultContent = document.getElementById('laporanBencanaResult');
                     if (bencanaResultContent) {
                         // Find the parent card and placeholder
@@ -987,7 +1058,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 bencanaResultContent.innerHTML = `
                                     <div class="mb-3">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <label class="form-label fw-medium mb-0">Narasi Patroli Bencana</label>
+                                            <label class="form-label fw-medium mb-0">Narasi Patroli Umum</label>
                                             <button type="button" class="btn btn-sm btn-outline-danger copy-btn" data-target="bencana-narrative">
                                                 <i class="material-icons-outlined" style="font-size: 16px;">content_copy</i> Copy
                                             </button>
@@ -1012,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 bencanaResultContent.innerHTML = `
                                     <div class="mb-3">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <label class="form-label fw-medium mb-0">Narasi Patroli Bencana</label>
+                                            <label class="form-label fw-medium mb-0">Narasi Patroli Umum</label>
                                             <button type="button" class="btn btn-sm btn-outline-danger copy-btn" data-target="bencana-narrative">
                                                 <i class="material-icons-outlined" style="font-size: 16px;">content_copy</i> Copy
                                             </button>
@@ -1023,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <label class="form-label fw-medium">Download Hasil</label>
                                         <div class="alert alert-warning">
                                             <i class="material-icons-outlined">warning</i> 
-                                            File laporan Patroli Bencana gagal dibuat, tapi narasi tersedia.
+                                            File laporan Patroli Umum gagal dibuat, tapi narasi tersedia.
                                         </div>
                                     </div>
                                 `;
@@ -1033,7 +1104,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 bencanaResultContent.innerHTML = `
                                     <div class="mb-3">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <label class="form-label fw-medium mb-0">Narasi Patroli Bencana</label>
+                                            <label class="form-label fw-medium mb-0">Narasi Patroli Umum</label>
                                         </div>
                                         <textarea id="bencana-narrative" class="form-control result-textarea" rows="10">${data?.narasiPatroliBencana || 'Narasi tidak tersedia atau pemrosesan gagal'}</textarea>
                                     </div>
@@ -1041,7 +1112,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <label class="form-label fw-medium">Download Hasil</label>
                                         <div class="alert alert-danger">
                                             <i class="material-icons-outlined">error</i> 
-                                            Pemrosesan laporan Patroli Bencana gagal.
+                                            Pemrosesan laporan Patroli Umum gagal.
                                         </div>
                                     </div>
                                 `;
@@ -1055,6 +1126,49 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
 
+                    // Tampilkan hasil laporan PPT
+                    const pptResultContent = document.getElementById('laporanPptResult');
+                    if (pptResultContent) {
+                        const parentCard = pptResultContent.closest('.card');
+                        const placeholder = parentCard ? parentCard.querySelector('.result-placeholder') : null;
+
+                        if (selected.includes('Laporan PPT')) {
+                            if (placeholder) placeholder.classList.add('d-none');
+                            pptResultContent.classList.remove('d-none');
+
+                            if (data && data.outputPathPpt) {
+                                pptResultContent.innerHTML = `
+                                    <div class="mb-3">
+                                        <label class="form-label fw-medium mb-0">Output Laporan PPT</label>
+                                        <div class="alert alert-warning mt-2 mb-0">
+                                            <i class="material-icons-outlined">event</i>
+                                            Tanggal laporan: ${document.getElementById('tanggal')?.value || '-'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="form-label fw-medium">Download Hasil</label>
+                                        <div class="d-flex flex-column gap-2">
+                                            <a href="hasil/${encodeURIComponent(data.outputPathPpt.split('/').pop())}" class="btn btn-sm btn-outline-warning d-flex align-items-center justify-content-center gap-2" target="_blank">
+                                                <i class="material-icons-outlined">slideshow</i> Laporan (PPT)
+                                            </a>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                pptResultContent.innerHTML = `
+                                    <div class="alert alert-danger">
+                                        <i class="material-icons-outlined">error</i>
+                                        File PPT belum berhasil dibuat.
+                                    </div>
+                                `;
+                            }
+                        } else {
+                            if (placeholder) placeholder.classList.remove('d-none');
+                            pptResultContent.classList.add('d-none');
+                            pptResultContent.innerHTML = '';
+                        }
+                    }
+
                     // Scroll ke hasil laporan (prioritas KBD, lalu Landy, lalu Pagi, lalu Bencana)
                     setTimeout(function() {
                         let scrollTarget = null;
@@ -1062,6 +1176,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const landyResultContent = document.getElementById('laporanLandyResult');
                         const pagiResultContent = document.getElementById('laporanPagiResult');
                         const bencanaResultContent = document.getElementById('laporanBencanaResult');
+                        const pptResultContent = document.getElementById('laporanPptResult');
                         
                         if (kbdResultContent && !kbdResultContent.classList.contains('d-none')) {
                             scrollTarget = kbdResultContent.closest('.card');
@@ -1071,6 +1186,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             scrollTarget = pagiResultContent.closest('.card');
                         } else if (bencanaResultContent && !bencanaResultContent.classList.contains('d-none')) {
                             scrollTarget = bencanaResultContent.closest('.card');
+                        } else if (pptResultContent && !pptResultContent.classList.contains('d-none')) {
+                            scrollTarget = pptResultContent.closest('.card');
                         }
                         
                         if (scrollTarget) {
@@ -1207,7 +1324,8 @@ function validateFormBasedOnReportTypes() {
     console.log('Basic validation passed, checking specific reports...');
     
     // Validasi Patrol Report (hanya untuk jenis laporan non-khusus)
-    const hasNonKhusus = selected.some(type => type !== 'Laporan Khusus');
+    const reportsNeedPatrol = ['Laporan KBD', 'Patroli Landy', 'Patroli Pagi', 'Patroli Bencana', 'Laporan MBG Lengkap'];
+    const hasNonKhusus = selected.some(type => reportsNeedPatrol.includes(type));
     console.log('hasNonKhusus:', hasNonKhusus);
     
     if (hasNonKhusus) {
@@ -1225,10 +1343,11 @@ function validateFormBasedOnReportTypes() {
         // Strip optional field labels for Patroli Landy or Patroli Bencana - support multiple variations
         const isPatroliLandy = selected.includes('Patroli Landy');
         const isPatroliBencana = selected.includes('Patroli Bencana');
-        const isLandyOrBencana = isPatroliLandy || isPatroliBencana;
+        const isMbgLengkap = selected.includes('Laporan MBG Lengkap');
+        const isLandyOrBencanaOrMbg = isPatroliLandy || isPatroliBencana || isMbgLengkap;
         
-        if (isLandyOrBencana) {
-            console.log('Patroli Landy/Bencana detected - stripping labels (Landy:', isPatroliLandy, 'Bencana:', isPatroliBencana + ')');
+        if (isLandyOrBencanaOrMbg) {
+            console.log('Patroli Landy/Bencana/MBG Lengkap detected - stripping labels (Landy:', isPatroliLandy, 'Bencana:', isPatroliBencana, 'MBG Lengkap:', isMbgLengkap + ')');
             normalizedPatrolReport = normalizedPatrolReport.replace(/^nama[\s_-]*akun\s*:\s*/gim, '');
             normalizedPatrolReport = normalizedPatrolReport.replace(/^link\s*:\s*/gim, '');
             normalizedPatrolReport = normalizedPatrolReport.replace(/^kategori\s*:\s*/gim, '');
@@ -1244,7 +1363,7 @@ function validateFormBasedOnReportTypes() {
         
         const patrolLines = normalizedPatrolReport.split('\n').map(l => l.trim()).filter(l => l !== '');
         
-        if (isLandyOrBencana) {
+        if (isLandyOrBencanaOrMbg) {
             // CHECK IF MULTI-LINE PROFILING FORMAT - Skip validation if detected
             // Support both old format (profiling:\nNama:) and new format (profiling:\nNik: or profiling:\nKK:)
             // Simple pattern: profiling: followed by newline and any field:value pattern (more flexible)
@@ -1256,7 +1375,9 @@ function validateFormBasedOnReportTypes() {
             } else {
                 // Untuk Patroli Landy/Bencana: harus kelipatan 9 baris (nama akun, link, kategori, narasi, profiling, tanggal_postingan, wilayah, korelasi, afiliasi)
                 if (patrolLines.length % 9 !== 0) {
-                    const reportTypeName = isPatroliBencana ? 'Patroli Bencana' : 'Patroli Landy';
+                    let reportTypeName = 'Patroli Landy';
+                    if (isPatroliBencana) reportTypeName = 'Patroli Umum';
+                    if (isMbgLengkap) reportTypeName = 'Laporan MBG Lengkap';
                     showFormAlert('Format Patrol Report untuk ' + reportTypeName + ' tidak valid. Harus terdiri dari kelompok 9 baris (nama akun, link, kategori, narasi, profiling, tanggal_postingan, wilayah, korelasi, afiliasi).<br><br><small><strong>TIP:</strong> Gunakan format multi-line profiling terstruktur (lihat contoh di Step 3).</small>', document.getElementById('step-3'));
                     return false;
                 }
@@ -1354,6 +1475,50 @@ function validateFormBasedOnReportTypes() {
             }
         }
         console.log('  ✅ Laporan KBD validation passed');
+    }
+
+    // Validasi Laporan MBG Lengkap
+    if (selected.includes('Laporan MBG Lengkap')) {
+        const judulMbgValue = document.getElementById('judulMbgLengkap')?.value || '';
+        const customJudulMbg = document.getElementById('judulMbgLengkapCustom')?.value.trim() || '';
+        if (!judulMbgValue || (judulMbgValue === 'custom' && !customJudulMbg)) {
+            showFormAlert('Judul Laporan MBG Lengkap wajib diisi.', document.getElementById('step3-judulMbgLengkap'));
+            return false;
+        }
+
+        const excelFiles = document.getElementById('excelFiles')?.files;
+        if (!excelFiles || excelFiles.length < 1) {
+            showFormAlert('Upload minimal 1 file Excel Cipop untuk Laporan MBG Lengkap.', document.getElementById('excelFiles'));
+            return false;
+        }
+
+        const cipopType = document.querySelector('input[name="cipopImageType"]:checked')?.value;
+        if (cipopType === 'upload') {
+            const files = document.getElementById('imageFiles')?.files;
+            if (!files || files.length < 1) {
+                showFormAlert('Upload minimal 1 gambar cipop untuk Laporan MBG Lengkap.', document.getElementById('imageFiles'));
+                return false;
+            }
+        } else if (cipopType === 'screenshot') {
+            const links = (document.getElementById('cipopScreenshotLinks')?.value || '').trim().split('\n').filter(l => l.trim());
+            if (links.length < 1) {
+                showFormAlert('Masukkan minimal 1 link tangkapan layar cipop.', document.getElementById('cipopScreenshotLinks'));
+                return false;
+            }
+        }
+    }
+
+    // Validasi Laporan PPT
+    if (selected.includes('Laporan PPT')) {
+        const pptFiles = document.getElementById('pptImageFiles')?.files;
+        if (!pptFiles || pptFiles.length < 1) {
+            showFormAlert('Upload minimal 1 gambar untuk Laporan PPT.', document.getElementById('pptImageFiles'));
+            return false;
+        }
+        if (pptFiles.length > 6) {
+            showFormAlert('Maksimal 6 gambar untuk Laporan PPT.', document.getElementById('pptImageFiles'));
+            return false;
+        }
     }
 
     // Validasi Laporan Khusus
@@ -1581,9 +1746,10 @@ function validateFormBasedOnReportTypes() {
         }
     }
     
-    // Validasi khusus untuk Patroli Landy (RAS) - skip jika hanya Laporan Khusus
-    if (!isOnlyLaporanKhusus && selected.includes('Patroli Landy')) {
-        console.log('Validating Patroli Landy (RAS)...');
+    // Validasi khusus untuk Patroli Landy / Laporan MBG Lengkap (RAS) - skip jika hanya Laporan Khusus
+    if (!isOnlyLaporanKhusus && (selected.includes('Patroli Landy') || selected.includes('Laporan MBG Lengkap'))) {
+        const landyOrMbgLabel = selected.includes('Laporan MBG Lengkap') ? 'Laporan MBG Lengkap' : 'Patroli Landy';
+        console.log('Validating ' + landyOrMbgLabel + ' (RAS)...');
         // Validasi input patrol report sudah dilakukan di atas
         if (hasNonKhusus) {
             const patrolReport = document.getElementById('patrolReport').value.trim();
@@ -1599,7 +1765,7 @@ function validateFormBasedOnReportTypes() {
             debugLog('Validating RAS files for Landy');
             const rasFileList = rasFiles.files;
             if (!rasFileList || rasFileList.length < 1) {
-                showFormAlert('Upload minimal 1 gambar RAS untuk Patroli Landy.', document.getElementById('rasFiles'));
+                showFormAlert('Upload minimal 1 gambar RAS untuk ' + landyOrMbgLabel + '.', document.getElementById('rasFiles'));
                 return false;
             }
             
@@ -1642,7 +1808,7 @@ function validateFormBasedOnReportTypes() {
             debugLog('Validating Profiling files for Landy');
             const profilingFileList = profilingFiles.files;
             if (!profilingFileList || profilingFileList.length < 1) {
-                showFormAlert('Upload minimal 1 foto profiling untuk Patroli Landy.', document.getElementById('profilingFiles'));
+                showFormAlert('Upload minimal 1 foto profiling untuk ' + landyOrMbgLabel + '.', document.getElementById('profilingFiles'));
                 return false;
             }
             

@@ -22,8 +22,10 @@ function nextStep(step) {
     const selectedReports = Array.from(document.querySelectorAll('input[name="reportType[]"]:checked'))
         .map(cb => cb.value);
     
-    const hasGeneralReports = selectedReports.some(type => type !== 'Laporan Khusus');
+    const reportsNeedPatrolReport = ['Laporan KBD', 'Patroli Landy', 'Patroli Pagi', 'Patroli Bencana', 'Laporan MBG Lengkap'];
+    const hasGeneralReports = selectedReports.some(type => reportsNeedPatrolReport.includes(type));
     const isOnlyLaporanKhusus = selectedReports.length === 1 && selectedReports.includes('Laporan Khusus');
+    const isOnlyLaporanPpt = selectedReports.length === 1 && selectedReports.includes('Laporan PPT');
 
     // Step 1 validation: At least one report type must be selected
     if (step === 1) {
@@ -108,6 +110,22 @@ function nextStep(step) {
             }
         }
         
+        // Show/hide judul MBG Lengkap
+        const step3JudulMbgLengkap = document.getElementById('step3-judulMbgLengkap');
+        if (step3JudulMbgLengkap) {
+            const isMbgLengkapSelected = selectedReports.includes('Laporan MBG Lengkap');
+            step3JudulMbgLengkap.classList.toggle('d-none', !isMbgLengkapSelected);
+
+            if (!isMbgLengkapSelected) {
+                const judulMbgSelect = document.getElementById('judulMbgLengkap');
+                const judulMbgCustom = document.getElementById('judulMbgLengkapCustom');
+                const judulMbgCustomInput = document.getElementById('judulMbgLengkapCustomInput');
+                if (judulMbgSelect) judulMbgSelect.value = '';
+                if (judulMbgCustom) judulMbgCustom.value = '';
+                if (judulMbgCustomInput) judulMbgCustomInput.classList.add('d-none');
+            }
+        }
+
         // Show/hide judul Bencana
         const step3JudulBencana = document.getElementById('step3-judulBencana');
         if (step3JudulBencana) {
@@ -143,12 +161,18 @@ function nextStep(step) {
         // Configure Step 4 upload fields
         const step4LaporanKbd = document.getElementById('step4-laporanKbd');
         if (step4LaporanKbd) {
-            step4LaporanKbd.classList.toggle('d-none', !selectedReports.includes('Laporan KBD'));
+            const showKbd = selectedReports.includes('Laporan KBD') || selectedReports.includes('Laporan MBG Lengkap');
+            step4LaporanKbd.classList.toggle('d-none', !showKbd);
         }
         
         const step4LaporanKhusus = document.getElementById('step4-laporanKhusus');
         if (step4LaporanKhusus) {
             step4LaporanKhusus.classList.toggle('d-none', !selectedReports.includes('Laporan Khusus'));
+        }
+
+        const step4LaporanPpt = document.getElementById('step4-laporanPpt');
+        if (step4LaporanPpt) {
+            step4LaporanPpt.classList.toggle('d-none', !selectedReports.includes('Laporan PPT'));
         }
         
         const shouldHideScreenshotPatrolUmum = isOnlyLaporanKhusus || !hasGeneralReports;
@@ -159,7 +183,7 @@ function nextStep(step) {
         
         const step4PatroliLandyPagi = document.getElementById('step4-patroliLandyPagi');
         if (step4PatroliLandyPagi) {
-            const showLandyPagi = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Pagi') || selectedReports.includes('Patroli Bencana');
+            const showLandyPagi = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Pagi') || selectedReports.includes('Patroli Bencana') || selectedReports.includes('Laporan MBG Lengkap');
             step4PatroliLandyPagi.classList.toggle('d-none', !showLandyPagi);
         }
         
@@ -169,9 +193,10 @@ function nextStep(step) {
             // Upaya hanya untuk Pagi, sembunyikan jika hanya Landy atau hanya Bencana
             const isOnlyLandy = selectedReports.length === 1 && selectedReports.includes('Patroli Landy');
             const isOnlyBencana = selectedReports.length === 1 && selectedReports.includes('Patroli Bencana');
+            const isOnlyMbgLengkap = selectedReports.length === 1 && selectedReports.includes('Laporan MBG Lengkap');
             const isLandyAndBencana = selectedReports.includes('Patroli Landy') && selectedReports.includes('Patroli Bencana') && selectedReports.length === 2;
             
-            if (isOnlyLandy || isOnlyBencana || isLandyAndBencana) {
+            if (isOnlyLandy || isOnlyBencana || isLandyAndBencana || isOnlyMbgLengkap) {
                 upayaPatroliSection.classList.add('d-none');
             } else {
                 upayaPatroliSection.classList.toggle('d-none', !selectedReports.includes('Patroli Pagi'));
@@ -181,17 +206,15 @@ function nextStep(step) {
         // Show/hide RAS section for Landy and Bencana
         const landyRasScreenshotSection = document.getElementById('landyRasScreenshotSection');
         if (landyRasScreenshotSection) {
-            const isLandyOrBencana = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Bencana');
-            landyRasScreenshotSection.classList.toggle('d-none', !isLandyOrBencana);
-            console.log('RAS section - Landy:', selectedReports.includes('Patroli Landy'), 'Bencana:', selectedReports.includes('Patroli Bencana'), 'Show:', isLandyOrBencana);
+            const isLandyOrBencanaOrMbg = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Bencana') || selectedReports.includes('Laporan MBG Lengkap');
+            landyRasScreenshotSection.classList.toggle('d-none', !isLandyOrBencanaOrMbg);
         }
         
         // Show/hide Profiling Screenshot section for Landy and Bencana
         const landyProfilingScreenshotSection = document.getElementById('landyProfilingScreenshotSection');
         if (landyProfilingScreenshotSection) {
-            const isLandyOrBencana = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Bencana');
-            landyProfilingScreenshotSection.classList.toggle('d-none', !isLandyOrBencana);
-            console.log('Profiling section - Landy:', selectedReports.includes('Patroli Landy'), 'Bencana:', selectedReports.includes('Patroli Bencana'), 'Show:', isLandyOrBencana);
+            const isLandyOrBencanaOrMbg = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Bencana') || selectedReports.includes('Laporan MBG Lengkap');
+            landyProfilingScreenshotSection.classList.toggle('d-none', !isLandyOrBencanaOrMbg);
         }
         
         // Hide Landy profiling data form completely (not needed - using multi-line profiling in textarea)
@@ -233,8 +256,15 @@ function nextStep(step) {
         // Show/hide Landy/Bencana format help in Step 3
         const landyFormatHelp = document.getElementById('landyFormatHelp');
         if (landyFormatHelp) {
-            const isLandyOrBencana = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Bencana');
-            landyFormatHelp.classList.toggle('d-none', !isLandyOrBencana);
+            const isLandyOrBencanaOrMbg = selectedReports.includes('Patroli Landy') || selectedReports.includes('Patroli Bencana') || selectedReports.includes('Laporan MBG Lengkap');
+            landyFormatHelp.classList.toggle('d-none', !isLandyOrBencanaOrMbg);
+        }
+
+        // For PPT-only flow: skip step 3 and go directly to upload section
+        if (isOnlyLaporanPpt) {
+            console.log('PPT-only selected, skipping step 3 and moving to step 4');
+            showStep(4);
+            return;
         }
     }
 
