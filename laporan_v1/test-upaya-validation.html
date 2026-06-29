@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upaya Validation</title>
+    <!-- Bootstrap CSS -->
+    <link href="template_web/assets/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Material+Icons+Outlined" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .form-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Form Validation</h1>
+    <p>This page tests the validation logic for different report types.</p>
+
+    <form id="wizardForm">
+        <!-- Report Type Selection -->
+        <div class="form-section" id="step-1">
+            <h3>Step 1: Select Report Type</h3>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="reportType[]" id="reportTypeKbd" value="Laporan KBD">
+                <label class="form-check-label" for="reportTypeKbd">Laporan KBD</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="reportType[]" id="reportTypeLandy" value="Patroli Landy">
+                <label class="form-check-label" for="reportTypeLandy">Patroli Landy</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="reportType[]" id="reportTypePagi" value="Patroli Pagi">
+                <label class="form-check-label" for="reportTypePagi">Patroli Pagi</label>
+            </div>
+        </div>
+
+        <!-- Tanggal -->
+        <div class="form-section" id="step-2">
+            <h3>Step 2: Select Date</h3>
+            <input type="date" id="tanggal" name="tanggal" class="form-control">
+        </div>
+
+        <!-- Patrol Report -->
+        <div class="form-section" id="step-3">
+            <h3>Step 3: Input Text Data</h3>
+            <div class="mb-3">
+                <label for="patrolReport" class="form-label">Input Patrol Report:</label>
+                <textarea name="patrolReport" id="patrolReport" rows="8" class="form-control"
+                    placeholder="Format teks patroli:
+nama akun
+link
+kategori
+narasi"></textarea>
+            </div>
+
+            <!-- Upaya Input (for Patroli Pagi) -->
+            <div id="step3-inputUpaya">
+                <label for="inputUpaya" class="form-label">Input Upaya Patroli Pagi:</label>
+                <textarea name="input_upaya" id="inputUpaya" rows="8" class="form-control"
+                    placeholder="Format teks upaya:
+nama akun
+link
+narasi"></textarea>
+            </div>
+        </div>
+
+        <!-- File Uploads -->
+        <div class="form-section" id="step-4">
+            <h3>Step 4: Upload Supporting Files</h3>
+            
+            <!-- KBD Files -->
+            <div id="step4-laporanKbd">
+                <h4>KBD Files</h4>
+                <div class="mb-3">
+                    <label for="excelFiles" class="form-label">Upload Excel Cipop:</label>
+                    <input type="file" name="excelFiles[]" id="excelFiles" accept=".xlsx, .xls" multiple class="form-control">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Pilih Jenis Gambar Cipop:</label>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="cipopImageType" id="cipopUploadFile" value="upload" checked>
+                        <label class="form-check-label" for="cipopUploadFile">Upload File</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="cipopImageType" id="cipopScreenshotLink" value="screenshot">
+                        <label class="form-check-label" for="cipopScreenshotLink">Tangkapan Layar Link</label>
+                    </div>
+                </div>
+                
+                <div id="cipopUploadFileGroup">
+                    <label for="imageFiles" class="form-label">Upload Gambar (1-8):</label>
+                    <input type="file" name="imageFiles[]" id="imageFiles" accept="image/*" multiple class="form-control">
+                </div>
+                
+                <div id="cipopScreenshotLinkGroup" class="d-none">
+                    <label for="cipopScreenshotLinks" class="form-label">Masukkan Link (satu per baris):</label>
+                    <textarea name="cipopScreenshotLinks" id="cipopScreenshotLinks" rows="5" class="form-control" placeholder="https://facebook.com/...
+https://instagram.com/..."></textarea>
+                </div>
+            </div>
+            
+            <!-- Screenshot Patroli -->
+            <div class="mt-4">
+                <h4>Screenshot Patroli</h4>
+                <div class="mb-3">
+                    <label class="form-label">Pilih Jenis Screenshot Patroli:</label>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="patroliScreenshotType" id="patroliScreenshotUploadFile" value="upload" checked>
+                        <label class="form-check-label" for="patroliScreenshotUploadFile">Upload File</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="patroliScreenshotType" id="patroliScreenshotLink" value="screenshot">
+                        <label class="form-check-label" for="patroliScreenshotLink">Tangkapan Layar Otomatis</label>
+                    </div>
+                </div>
+                
+                <div id="patroliScreenshotUploadFileGroup">
+                    <label for="screenshotPatroli" class="form-label">Upload Screenshot Patroli:</label>
+                    <input type="file" name="screenshotPatroli[]" id="screenshotPatroli" accept="image/*" multiple class="form-control">
+                </div>
+                
+                <div id="patroliScreenshotLinkWarning" class="d-none">
+                    <div class="alert alert-warning mt-2 py-2 px-3 rounded-3 font-13">
+                        <i class="material-icons-outlined">warning</i>
+                        <b>Catatan penting:</b> Pastikan link pada Patrol Report valid dan dapat diakses publik.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Upaya Files (for Patroli Pagi) -->
+            <div id="upayaPatroliSection" class="mt-4">
+                <h4>Upload Upaya Patroli Pagi</h4>
+                <div class="mb-2" id="upayaScreenshotTypeGroup">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="upayaScreenshotType" id="upayaScreenshotUploadFile" value="upload" checked>
+                        <label class="form-check-label" for="upayaScreenshotUploadFile">Upload File</label>
+                    </div>
+                    <div class="form-check form-check-inline" id="upayaScreenshotLinkRadio">
+                        <input class="form-check-input" type="radio" name="upayaScreenshotType" id="upayaScreenshotLink" value="screenshot">
+                        <label class="form-check-label" for="upayaScreenshotLink">Tangkapan Layar Otomatis</label>
+                    </div>
+                </div>
+                
+                <div id="upayaScreenshotUploadFileGroup">
+                    <label for="upayaFiles" class="form-label">Upload Upaya:</label>
+                    <input type="file" name="upayaFiles[]" id="upayaFiles" accept="image/*" multiple class="form-control">
+                </div>
+                
+                <div id="upayaScreenshotLinkWarning" class="d-none">
+                    <div class="alert alert-warning mt-2 py-2 px-3 rounded-3">
+                        <i class="material-icons-outlined">warning</i>
+                        <b>Catatan penting:</b> Pastikan link pada data Upaya valid dan dapat diakses publik.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- RAS Files (for Landy) -->
+            <div id="landyRasScreenshotSection" class="mt-4">
+                <h4>Upload Tangkapan Layar RAS (Khusus Landy)</h4>
+                <label for="rasFiles" class="form-label">Upload Screenshot RAS:</label>
+                <input type="file" name="rasFiles[]" id="rasFiles" accept="image/*" multiple class="form-control">
+                <small class="form-text text-muted">Upload gambar tangkapan layar aktivitas RAS (jumlah sesuai laporan)</small>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-3" id="submitBtn">Submit</button>
+    </form>
+
+    <div id="validationResult" class="alert mt-4" style="display: none;"></div>
+
+    <!-- Bootstrap & jQuery JS -->
+    <script src="template_web/assets/js/jquery.min.js"></script>
+    <script src="template_web/assets/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Debug log function
+        function debugLog(message, data) {
+            console.log(`[DEBUG] ${message}`, data || '');
+        }
+
+        // Toggle fields based on selected report types
+        function toggleFields() {
+            const selected = Array.from(document.querySelectorAll('input[name="reportType[]"]:checked')).map(cb => cb.value);
+            
+            // Show/hide KBD form elements
+            document.getElementById('step4-laporanKbd').style.display = selected.includes('Laporan KBD') ? 'block' : 'none';
+            
+            // Show/hide Upaya input for Patroli Pagi
+            document.getElementById('step3-inputUpaya').style.display = selected.includes('Patroli Pagi') ? 'block' : 'none';
+            
+            // Show/hide Upaya file upload section based on Patroli Pagi, not needed for Landy only
+            const upayaSection = document.getElementById('upayaPatroliSection');
+            if (selected.includes('Patroli Pagi')) {
+                upayaSection.style.display = 'block';
+            } else if (selected.length === 1 && selected.includes('Patroli Landy')) {
+                upayaSection.style.display = 'none';
+            } else {
+                upayaSection.style.display = 'block';
+            }
+            
+            // Show/hide RAS screenshot section for Landy
+            document.getElementById('landyRasScreenshotSection').style.display = selected.includes('Patroli Landy') ? 'block' : 'none';
+        }
+
+        // Toggle fields based on cipopImageType radio
+        function toggleCipopImageInput() {
+            const checked = document.querySelector('input[name="cipopImageType"]:checked');
+            if (checked) {
+                const type = checked.value;
+                document.getElementById('cipopUploadFileGroup').style.display = type === 'upload' ? 'block' : 'none';
+                document.getElementById('cipopScreenshotLinkGroup').style.display = type === 'screenshot' ? 'block' : 'none';
+            }
+        }
+
+        // Toggle fields based on patroliScreenshotType radio
+        function togglePatroliScreenshotInput() {
+            const checked = document.querySelector('input[name="patroliScreenshotType"]:checked');
+            if (checked) {
+                const type = checked.value;
+                document.getElementById('patroliScreenshotUploadFileGroup').style.display = type === 'upload' ? 'block' : 'none';
+                document.getElementById('patroliScreenshotLinkWarning').style.display = type === 'screenshot' ? 'block' : 'none';
+            }
+        }
+
+        // Toggle fields based on upayaScreenshotType radio
+        function toggleUpayaScreenshotInput() {
+            const checked = document.querySelector('input[name="upayaScreenshotType"]:checked');
+            if (checked) {
+                const type = checked.value;
+                document.getElementById('upayaScreenshotUploadFileGroup').style.display = type === 'upload' ? 'block' : 'none';
+                document.getElementById('upayaScreenshotLinkWarning').style.display = type === 'screenshot' ? 'block' : 'none';
+            }
+        }
+
+        // Add event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial field toggling
+            toggleFields();
+            toggleCipopImageInput();
+            togglePatroliScreenshotInput();
+            toggleUpayaScreenshotInput();
+            
+            // Add listeners for report type changes
+            document.querySelectorAll('input[name="reportType[]"]').forEach(cb => {
+                cb.addEventListener('change', toggleFields);
+            });
+            
+            // Add listeners for radio button changes
+            document.querySelectorAll('input[name="cipopImageType"]').forEach(radio => {
+                radio.addEventListener('change', toggleCipopImageInput);
+            });
+            
+            document.querySelectorAll('input[name="patroliScreenshotType"]').forEach(radio => {
+                radio.addEventListener('change', togglePatroliScreenshotInput);
+            });
+            
+            document.querySelectorAll('input[name="upayaScreenshotType"]').forEach(radio => {
+                radio.addEventListener('change', toggleUpayaScreenshotInput);
+            });
+            
+            // Form submission
+            document.getElementById('wizardForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Import validation function from ajax-handler.js
+                if (typeof validateFormBasedOnReportTypes === 'function') {
+                    const isValid = validateFormBasedOnReportTypes();
+                    const resultDiv = document.getElementById('validationResult');
+                    
+                    if (isValid) {
+                        resultDiv.className = 'alert alert-success mt-4';
+                        resultDiv.textContent = 'Form validation passed! The form would be submitted.';
+                    } else {
+                        resultDiv.className = 'alert alert-danger mt-4';
+                        resultDiv.textContent = 'Validation failed. See the error message above.';
+                    }
+                    resultDiv.style.display = 'block';
+                } else {
+                    alert('The validateFormBasedOnReportTypes function is not available. Make sure ajax-handler.js is properly loaded.');
+                }
+            });
+        });
+        
+        // Function to show form alert (simplified version of the one in ajax-handler.js)
+        function showFormAlert(msg, el) {
+            let alertDiv = document.getElementById('formAlert');
+            if (!alertDiv) {
+                alertDiv = document.createElement('div');
+                alertDiv.id = 'formAlert';
+                alertDiv.className = 'alert alert-danger alert-dismissible fade show mt-2';
+                alertDiv.role = 'alert';
+                alertDiv.innerHTML = `<span id="formAlertMsg"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+                const form = document.getElementById('wizardForm');
+                if (el && el.parentNode) {
+                    el.parentNode.insertBefore(alertDiv, el);
+                } else {
+                    form.parentNode.insertBefore(alertDiv, form);
+                }
+            }
+            document.getElementById('formAlertMsg').innerText = msg;
+            alertDiv.style.display = '';
+            setTimeout(() => {
+                if (alertDiv) alertDiv.classList.remove('show');
+            }, 6000);
+            
+            // Don't scroll in the test page
+            // alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            return false;
+        }
+    </script>
+    
+    <!-- Import validation function from the main file -->
+    <script src="js/ajax-handler.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+/* 
+ * File: custom.css
+ * Deskripsi: File CSS kustom untuk aplikasi Rekap Hastag
+ * Berisi semua style khusus untuk tema default dan elemen UI
+ */
+
+body {
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+.card {
+    background-color: #fff;
+    color: #212529;
+    border: 1px solid rgba(0,0,0,.125);
+}
+
+/* Use default Bootstrap button colors */
+.btn-primary {
+    /* Default Bootstrap primary colors */
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+.btn-success {
+    /* Default Bootstrap success colors */
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.btn-success:hover {
+    background-color: #157347;
+    border-color: #146c43;
+}
+
+.btn-danger {
+    /* Default Bootstrap danger colors */
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #bb2d3b;
+    border-color: #b02a37;
+}
+
+textarea.form-control {
+    font-size: 14px;
+}
+
+#progressBarContainer {
+    margin-bottom: 1rem;
+    display: none;
+}
+
+#progressBar {
+    width: 100%;
+    height: 24px;
+}
+
+#progressBarStatus {
+    font-size: 1rem;
+    color: #0d6efd;
+    margin-bottom: 0.3rem;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    vertical-align: middle;
+    border: 0.25em solid #0d6efd;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner 0.75s linear infinite;
+    margin-left: 0.5rem;
+}
+
+@keyframes spinner {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Change card background colors for form sections */
+.card.bg-secondary {
+    background-color: #f8f9fa !important;
+    border: 1px solid #dee2e6;
+    color: #212529;
+}
+
+.card.bg-secondary .card-header {
+    background-color: #e9ecef;
+    color: #212529;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.bg-dark {
+    background-color: #f8f9fa !important;
+    color: #212529;
+}
+
+/* Update progress overlay for light theme */
+#progressOverlay {
+    background: rgba(255,255,255,0.85) !important;
+    backdrop-filter: blur(2px);
+}
+
+#progressOverlay > div {
+    background: #ffffff !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15) !important;
+    border: 1px solid #dee2e6;
+}
+
+#progressBarServerMsg {
+    color: #fd7e14 !important;
+}
+
+#debugInfo {
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
+    border: 1px solid #dee2e6;
+}
