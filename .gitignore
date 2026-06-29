@@ -1,0 +1,9 @@
+/node_modules/
+/vendor/
+/laporan_v1/node_modules/
+/laporan_v1/vendor/
+.vercel/
+error.log
+/hasil/*.docx
+/hasil/*.pdf
+/hasil/*.xlsx
